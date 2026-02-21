@@ -227,7 +227,60 @@ const css = `
 `;
 
 const STEPS = ["Location & Land", "Design & Materials", "Budget & Purpose", "Your Plan"];
-const STEP_ICONS = ["fa-map-location-dot", "fa-hammer", "fa-wallet", "fa-clipboard-check"];
+
+const css = `
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Playfair+Display:wght@600;700;800&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+input, select, textarea { font-family: inherit; }
+.card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 24px; backdrop-filter: blur(8px); }
+.card-hover:hover { border-color: rgba(74, 222, 128, 0.3); background: rgba(255,255,255,0.06); }
+.btn-primary { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(34,197,94,0.3); }
+.btn-secondary { background: rgba(255,255,255,0.06); color: #c8d8c8; border: 1px solid rgba(255,255,255,0.12); padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+.btn-secondary:hover { background: rgba(255,255,255,0.1); }
+.input-field { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 12px 16px; color: #e8ede8; font-size: 15px; outline: none; transition: border 0.2s; }
+.input-field:focus { border-color: #22c55e; }
+.input-field::placeholder { color: rgba(255,255,255,0.3); }
+select.input-field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2388aa88' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+select.input-field option { background: #1a2a1a; color: #e8ede8; }
+.material-card { background: rgba(0,0,0,0.2); border: 2px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 18px; cursor: pointer; transition: all 0.25s; }
+.material-card:hover { border-color: rgba(74,222,128,0.3); }
+.material-card.selected { border-color: #22c55e; background: rgba(34,197,94,0.08); }
+.finish-btn { flex: 1; padding: 12px 16px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); cursor: pointer; text-align: center; transition: all 0.2s; color: #c8d8c8; font-family: inherit; font-size: 14px; }
+.finish-btn:hover { border-color: rgba(74,222,128,0.3); }
+.finish-btn.selected { border-color: #22c55e; background: rgba(34,197,94,0.08); color: #e8ede8; }
+.tab-btn { padding: 10px 20px; border-radius: 10px; border: none; background: transparent; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; white-space: nowrap; font-family: inherit; }
+.tab-btn:hover { color: rgba(255,255,255,0.7); }
+.tab-btn.active { background: rgba(34,197,94,0.15); color: #4ade80; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: #4ade80; }
+.badge-amber { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.badge-red { background: rgba(239,68,68,0.15); color: #f87171; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.4s ease-out; }
+.error-text { color: #f87171; font-size: 13px; margin-top: 4px; }
+.address-search-wrap { position: relative; }
+.address-search-wrap .input-field { padding-right: 44px; }
+.search-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: linear-gradient(135deg, #22c55e, #16a34a); border: none; border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; transition: all 0.2s; }
+.search-btn:hover { box-shadow: 0 4px 12px rgba(34,197,94,0.3); }
+.search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.map-container { position: relative; border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.1); background: #0d1b0d; }
+.map-container canvas { display: block; cursor: crosshair; }
+.map-overlay-badge { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #4ade80; font-weight: 600; pointer-events: none; z-index: 2; display: flex; align-items: center; gap: 6px; }
+.map-instructions { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); border-radius: 8px; padding: 6px 14px; font-size: 11px; color: rgba(255,255,255,0.7); pointer-events: none; z-index: 2; white-space: nowrap; }
+.map-dist-label { background: rgba(0,0,0,0.75); padding: 1px 5px; border-radius: 4px; }
+.map-toolbar { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 4px; z-index: 2; }
+.map-tool-btn { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #e8ede8; font-size: 16px; font-weight: 700; transition: all 0.2s; font-family: inherit; }
+.map-tool-btn:hover { background: rgba(34,197,94,0.2); border-color: #22c55e; }
+@keyframes pulseGreen { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); } 50% { box-shadow: 0 0 0 8px rgba(34,197,94,0); } }
+.pulse-green { animation: pulseGreen 2s ease-in-out infinite; }
+@media (max-width: 640px) {
+  .card { padding: 16px; }
+  .btn-primary, .btn-secondary { padding: 12px 20px; font-size: 14px; }
+  .grid-2 { grid-template-columns: 1fr !important; }
+  .mat-grid { grid-template-columns: 1fr !important; }
+}
+`;
 
 function TinyHousePlanner() {
   const [step, setStep] = useState(0);
