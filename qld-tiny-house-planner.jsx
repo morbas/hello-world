@@ -260,9 +260,12 @@ function TinyHousePlanner() {
   const [measuredArea, setMeasuredArea] = useState(null);
   const [mapDrag, setMapDrag] = useState(null);
   const [mapCenter, setMapCenter] = useState(null);
-  const canvasRef = useRef(null);
-  const mapImgRef = useRef(null);
-  const dragStartRef = useRef(null);
+  const mapDivRef = useRef(null);
+  const googleMapRef = useRef(null);
+  const googlePolygonRef = useRef(null);
+  const googleMarkerRef = useRef(null);
+  const googleMarkersRef = useRef([]);
+  const polyPointsRef = useRef([]);
   const mapCenterRef = useRef(null);
 
   // Geocode address using local suburb database (no external API needed)
@@ -283,6 +286,7 @@ function TinyHousePlanner() {
         setMapCenter({ lat, lng });
         mapCenterRef.current = { lat, lng };
         setPolyPoints([]);
+        polyPointsRef.current = [];
         setMeasuredArea(null);
         setMapZoom(19);
         update("council", match.c);
@@ -294,241 +298,133 @@ function TinyHousePlanner() {
     }, 400);
   }, [address]);
 
-  // Tile math helpers
-  const lng2tile = (lng, z) => ((lng + 180) / 360) * Math.pow(2, z);
-  const lat2tile = (lat, z) => ((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2) * Math.pow(2, z);
-  const tile2lng = (x, z) => (x / Math.pow(2, z)) * 360 - 180;
-  const tile2lat = (y, z) => { const n = Math.PI - (2 * Math.PI * y) / Math.pow(2, z); return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))); };
+  // Initialize Google Map when addressResult changes
+  const initGoogleMap = useCallback(async () => {
+    if (!mapDivRef.current || !addressResult || addressResult.error) return;
+    const { Map } = await google.maps.importLibrary("maps");
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+    const center = { lat: addressResult.lat, lng: addressResult.lng };
 
-  const latlngToPixel = useCallback((lat, lng, center, zoom, canvasW, canvasH) => {
-    const cx = lng2tile(center.lng, zoom);
-    const cy = lat2tile(center.lat, zoom);
-    const px = lng2tile(lng, zoom);
-    const py = lat2tile(lat, zoom);
-    return { x: (px - cx) * 256 + canvasW / 2, y: (py - cy) * 256 + canvasH / 2 };
-  }, []);
-
-  const pixelToLatlng = useCallback((x, y, center, zoom, canvasW, canvasH) => {
-    const cx = lng2tile(center.lng, zoom);
-    const cy = lat2tile(center.lat, zoom);
-    const tileX = cx + (x - canvasW / 2) / 256;
-    const tileY = cy + (y - canvasH / 2) / 256;
-    return { lat: tile2lat(tileY, zoom), lng: tile2lng(tileX, zoom) };
-  }, []);
-
-  // Draw map on canvas — self-contained grid-based map (no external tile fetch)
-  const drawMap = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !mapCenterRef.current) return;
-    const ctx = canvas.getContext("2d");
-    const W = canvas.width;
-    const H = canvas.height;
-    const center = mapCenterRef.current;
-    const z = mapZoom;
-
-    // Meters per pixel at this zoom level at this latitude
-    const mPerPx = (156543.03 * Math.cos(center.lat * Math.PI / 180)) / Math.pow(2, z);
-
-    // Background
-    ctx.fillStyle = "#1a2e1a";
-    ctx.fillRect(0, 0, W, H);
-
-    // Draw grid
-    const gridSpacingM = z >= 20 ? 5 : z >= 19 ? 10 : z >= 18 ? 20 : z >= 17 ? 50 : 100;
-    const gridSpacingPx = gridSpacingM / mPerPx;
-
-    // Subtle green grid pattern to simulate aerial/parcel view
-    ctx.strokeStyle = "rgba(34, 197, 94, 0.08)";
-    ctx.lineWidth = 0.5;
-    for (let x = W / 2 % gridSpacingPx; x < W; x += gridSpacingPx) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-    }
-    for (let y = H / 2 % gridSpacingPx; y < H; y += gridSpacingPx) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-    }
-
-    // Major grid lines
-    const majorSpacingM = gridSpacingM * 5;
-    const majorSpacingPx = majorSpacingM / mPerPx;
-    ctx.strokeStyle = "rgba(34, 197, 94, 0.15)";
-    ctx.lineWidth = 1;
-    for (let x = W / 2 % majorSpacingPx; x < W; x += majorSpacingPx) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-    }
-    for (let y = H / 2 % majorSpacingPx; y < H; y += majorSpacingPx) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-    }
-
-    // Simulated road pattern (random seeded by lat/lng for consistency)
-    const seed = Math.abs(Math.sin(center.lat * 100) * Math.cos(center.lng * 100)) * 10000;
-    ctx.strokeStyle = "rgba(100, 130, 100, 0.2)";
-    ctx.lineWidth = 3;
-    const roadOffset1 = ((seed % 200) - 100);
-    const roadOffset2 = (((seed * 7) % 200) - 100);
-    // Horizontal road
-    ctx.beginPath(); ctx.moveTo(0, H / 2 + roadOffset1); ctx.lineTo(W, H / 2 + roadOffset1); ctx.stroke();
-    // Vertical road
-    ctx.beginPath(); ctx.moveTo(W / 2 + roadOffset2, 0); ctx.lineTo(W / 2 + roadOffset2, H); ctx.stroke();
-
-    // Simulated lots / blocks pattern
-    ctx.strokeStyle = "rgba(80, 120, 80, 0.12)";
-    ctx.lineWidth = 0.8;
-    const lotSizePx = (z >= 19 ? 15 : z >= 18 ? 12 : 8) / mPerPx;
-    if (lotSizePx > 8) {
-      for (let x = (W / 2 % lotSizePx) - lotSizePx; x < W + lotSizePx; x += lotSizePx) {
-        for (let y = (H / 2 % lotSizePx) - lotSizePx; y < H + lotSizePx; y += lotSizePx) {
-          ctx.strokeRect(x + 2, y + 2, lotSizePx - 4, lotSizePx - 4);
-          // Slight green fill to simulate vegetation
-          ctx.fillStyle = `rgba(${20 + ((x * y) % 30)}, ${50 + ((x + y) % 40)}, ${20 + ((x * y) % 20)}, 0.15)`;
-          ctx.fillRect(x + 3, y + 3, lotSizePx - 6, lotSizePx - 6);
-        }
-      }
-    }
-
-    // Draw polygon
-    if (polyPoints.length > 0) {
-      ctx.beginPath();
-      polyPoints.forEach((pt, i) => {
-        const { x, y } = latlngToPixel(pt.lat, pt.lng, center, z, W, H);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      });
-      if (polyPoints.length >= 3) {
-        ctx.closePath();
-        ctx.fillStyle = "rgba(34, 197, 94, 0.2)";
-        ctx.fill();
-      }
-      ctx.strokeStyle = "#22c55e";
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([]);
-      ctx.stroke();
-
-      // Draw vertices
-      polyPoints.forEach((pt, i) => {
-        const { x, y } = latlngToPixel(pt.lat, pt.lng, center, z, W, H);
-        ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2);
-        ctx.fillStyle = i === 0 ? "#4ade80" : "#fff";
-        ctx.fill();
-        ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = "#000"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(String(i + 1), x, y);
+    // Create or update map
+    if (!googleMapRef.current) {
+      googleMapRef.current = new Map(mapDivRef.current, {
+        center,
+        zoom: 19,
+        mapTypeId: "satellite",
+        mapId: "TINY_HOUSE_MAP",
+        disableDefaultUI: true,
+        zoomControl: true,
+        gestureHandling: "greedy",
+        tilt: 0,
       });
 
-      // Draw edge lengths
-      if (polyPoints.length >= 2) {
-        const R = 6371000;
-        const toRad = d => d * Math.PI / 180;
-        for (let i = 0; i < polyPoints.length; i++) {
-          const j = (i + 1) % polyPoints.length;
-          if (j === 0 && polyPoints.length < 3) break;
-          const p1 = polyPoints[i], p2 = polyPoints[j];
-          const dlat = toRad(p2.lat - p1.lat), dlng = toRad(p2.lng - p1.lng);
-          const a = Math.sin(dlat / 2) ** 2 + Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) * Math.sin(dlng / 2) ** 2;
-          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          const px1 = latlngToPixel(p1.lat, p1.lng, center, z, W, H);
-          const px2 = latlngToPixel(p2.lat, p2.lng, center, z, W, H);
-          const mx = (px1.x + px2.x) / 2, my = (px1.y + px2.y) / 2;
-          const label = dist >= 100 ? `${dist.toFixed(0)}m` : `${dist.toFixed(1)}m`;
-          ctx.font = "bold 11px sans-serif";
-          const tw = ctx.measureText(label).width;
-          ctx.fillStyle = "rgba(0,0,0,0.8)";
-          ctx.fillRect(mx - tw / 2 - 5, my - 9, tw + 10, 18);
-          ctx.fillStyle = "#4ade80"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.fillText(label, mx, my);
+      // Click listener to add polygon points
+      googleMapRef.current.addListener("click", (e) => {
+        const pt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+        const newPoints = [...polyPointsRef.current, pt];
+        polyPointsRef.current = newPoints;
+        setPolyPoints([...newPoints]);
+        if (newPoints.length >= 3) {
+          const area = calcPolygonAreaSqm(newPoints);
+          setMeasuredArea(Math.round(area));
+          update("landSize", String(Math.round(area)));
         }
+        updateGooglePolygon(newPoints);
+      });
+    } else {
+      googleMapRef.current.setCenter(center);
+      googleMapRef.current.setZoom(19);
+    }
+
+    // Clear old marker and polygon
+    if (googleMarkerRef.current) googleMarkerRef.current.map = null;
+    if (googlePolygonRef.current) googlePolygonRef.current.setMap(null);
+    googleMarkersRef.current.forEach(m => m.map = null);
+    googleMarkersRef.current = [];
+
+    // Add marker at address location
+    const pinEl = document.createElement("div");
+    pinEl.innerHTML = `<div style="width:24px;height:24px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`;
+    googleMarkerRef.current = new AdvancedMarkerElement({
+      map: googleMapRef.current,
+      position: center,
+      content: pinEl,
+      title: "Property Location",
+    });
+  }, [addressResult]);
+
+  // Update polygon on Google Map
+  const updateGooglePolygon = useCallback((points) => {
+    if (!googleMapRef.current) return;
+    // Remove old polygon
+    if (googlePolygonRef.current) googlePolygonRef.current.setMap(null);
+    // Remove old vertex markers
+    googleMarkersRef.current.forEach(m => m.map = null);
+    googleMarkersRef.current = [];
+
+    if (points.length < 2) {
+      // Just show a single vertex marker for the first point
+      if (points.length === 1) {
+        const el = document.createElement("div");
+        el.innerHTML = `<div style="width:18px;height:18px;background:#4ade80;border:2px solid #22c55e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:bold;color:#000;">1</div>`;
+        const m = new google.maps.marker.AdvancedMarkerElement({ map: googleMapRef.current, position: points[0], content: el });
+        googleMarkersRef.current.push(m);
       }
+      return;
     }
 
-    // Draw center pin
-    if (addressResult && !addressResult.error) {
-      const { x, y } = latlngToPixel(addressResult.lat, addressResult.lng, center, z, W, H);
-      // Pin shadow
-      ctx.beginPath(); ctx.ellipse(x, y + 2, 6, 3, 0, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fill();
-      // Pin body
-      ctx.beginPath(); ctx.arc(x, y - 14, 9, 0, Math.PI * 2);
-      ctx.fillStyle = "#ef4444"; ctx.fill();
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5; ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 5, y - 11); ctx.lineTo(x + 5, y - 11); ctx.closePath();
-      ctx.fillStyle = "#ef4444"; ctx.fill();
-      ctx.beginPath(); ctx.arc(x, y - 14, 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = "#fff"; ctx.fill();
+    // Draw polygon (or polyline if < 3 points)
+    const path = points.map(p => ({ lat: p.lat, lng: p.lng }));
+    if (points.length >= 3) {
+      googlePolygonRef.current = new google.maps.Polygon({
+        paths: path,
+        strokeColor: "#22c55e",
+        strokeWeight: 3,
+        fillColor: "#22c55e",
+        fillOpacity: 0.2,
+        map: googleMapRef.current,
+      });
+    } else {
+      googlePolygonRef.current = new google.maps.Polyline({
+        path: path,
+        strokeColor: "#22c55e",
+        strokeWeight: 3,
+        map: googleMapRef.current,
+      });
     }
 
-    // Scale bar
-    const scaleM = z >= 19 ? 10 : z >= 18 ? 20 : z >= 17 ? 50 : 100;
-    const scalePx = scaleM / mPerPx;
-    const sx = 20, sy = H - 20;
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(sx - 5, sy - 18, scalePx + 50, 24);
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + scalePx, sy); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(sx, sy - 4); ctx.lineTo(sx, sy + 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(sx + scalePx, sy - 4); ctx.lineTo(sx + scalePx, sy + 2); ctx.stroke();
-    ctx.fillStyle = "#fff"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-    ctx.fillText(`${scaleM}m`, sx + scalePx + 6, sy + 4);
+    // Add numbered vertex markers and edge labels
+    const R = 6371000;
+    const toRad = d => d * Math.PI / 180;
+    points.forEach((pt, i) => {
+      const el = document.createElement("div");
+      el.innerHTML = `<div style="width:18px;height:18px;background:${i === 0 ? '#4ade80' : '#fff'};border:2px solid #22c55e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:bold;color:#000;">${i + 1}</div>`;
+      const m = new google.maps.marker.AdvancedMarkerElement({ map: googleMapRef.current, position: pt, content: el });
+      googleMarkersRef.current.push(m);
 
-    // Coordinates display
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(W - 200, H - 26, 195, 22);
-    ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = "11px monospace"; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
-    ctx.fillText(`${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}  z${z}`, W - 12, H - 9);
-  }, [mapZoom, polyPoints, addressResult, latlngToPixel]);
-
-  useEffect(() => { if (mapCenterRef.current) drawMap(); }, [drawMap, mapCenter, mapZoom, polyPoints]);
-
-  // Canvas click to add polygon points
-  const handleCanvasClick = useCallback((e) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !mapCenterRef.current) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
-    const pt = pixelToLatlng(x, y, mapCenterRef.current, mapZoom, canvas.width, canvas.height);
-    const newPoints = [...polyPoints, pt];
-    setPolyPoints(newPoints);
-    if (newPoints.length >= 3) {
-      const area = calcPolygonAreaSqm(newPoints);
-      setMeasuredArea(Math.round(area));
-      update("landSize", String(Math.round(area)));
-    }
-  }, [polyPoints, mapZoom, pixelToLatlng]);
-
-  // Mouse drag for panning
-  const handleMouseDown = useCallback((e) => {
-    if (e.button === 2 || e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      dragStartRef.current = { x: e.clientX, y: e.clientY, center: { ...mapCenterRef.current } };
-    }
+      // Edge distance label
+      const j = (i + 1) % points.length;
+      if (j === 0 && points.length < 3) return;
+      const p1 = points[i], p2 = points[j];
+      const dlat = toRad(p2.lat - p1.lat), dlng = toRad(p2.lng - p1.lng);
+      const a = Math.sin(dlat / 2) ** 2 + Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) * Math.sin(dlng / 2) ** 2;
+      const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const midLat = (p1.lat + p2.lat) / 2;
+      const midLng = (p1.lng + p2.lng) / 2;
+      const label = dist >= 100 ? `${dist.toFixed(0)}m` : `${dist.toFixed(1)}m`;
+      const labelEl = document.createElement("div");
+      labelEl.innerHTML = `<div style="background:rgba(0,0,0,0.8);color:#4ade80;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold;white-space:nowrap;">${label}</div>`;
+      const lm = new google.maps.marker.AdvancedMarkerElement({ map: googleMapRef.current, position: { lat: midLat, lng: midLng }, content: labelEl });
+      googleMarkersRef.current.push(lm);
+    });
   }, []);
 
-  const handleMouseMove = useCallback((e) => {
-    if (!dragStartRef.current) return;
-    const dx = e.clientX - dragStartRef.current.x;
-    const dy = e.clientY - dragStartRef.current.y;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const center = dragStartRef.current.center;
-    const newCenter = pixelToLatlng(
-      canvas.width / 2 - dx * scaleX,
-      canvas.height / 2 - dy * scaleY,
-      center, mapZoom, canvas.width, canvas.height
-    );
-    mapCenterRef.current = newCenter;
-    setMapCenter({ ...newCenter });
-  }, [mapZoom, pixelToLatlng]);
-
-  const handleMouseUp = useCallback(() => { dragStartRef.current = null; }, []);
-
+  // Initialize map when address result or map div is ready
   useEffect(() => {
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => { window.removeEventListener("mousemove", handleMouseMove); window.removeEventListener("mouseup", handleMouseUp); };
-  }, [handleMouseMove, handleMouseUp]);
+    if (addressResult && !addressResult.error && mapDivRef.current) {
+      initGoogleMap();
+    }
+  }, [addressResult, initGoogleMap]);
 
   const update = (key, value) => { setFormData(prev => ({ ...prev, [key]: value })); setErrors(prev => ({ ...prev, [key]: undefined })); };
   const validateStep = (s) => {
@@ -540,7 +436,7 @@ function TinyHousePlanner() {
   };
   const nextStep = () => { if (validateStep(step)) { if (step === 2) { setPlan(generatePlan(formData)); setStep(3); } else { setStep(s => s + 1); } } };
   const prevStep = () => setStep(s => Math.max(0, s - 1));
-  const resetAll = () => { setStep(0); setPlan(null); setResultTab("overview"); setFormData({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "", purpose: "family" }); setAddress(""); setAddressResult(null); setPolyPoints([]); setMeasuredArea(null); setMapCenter(null); mapCenterRef.current = null; };
+  const resetAll = () => { setStep(0); setPlan(null); setResultTab("overview"); setFormData({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "", purpose: "family" }); setAddress(""); setAddressResult(null); setPolyPoints([]); polyPointsRef.current = []; setMeasuredArea(null); setMapCenter(null); mapCenterRef.current = null; if (googlePolygonRef.current) { googlePolygonRef.current.setMap(null); googlePolygonRef.current = null; } if (googleMarkerRef.current) { googleMarkerRef.current.map = null; googleMarkerRef.current = null; } googleMarkersRef.current.forEach(m => m.map = null); googleMarkersRef.current = []; googleMapRef.current = null; };
   const fmt = (n) => "$" + Math.round(n).toLocaleString();
   const pf = "'Playfair Display', Georgia, serif";
 
@@ -620,27 +516,22 @@ function TinyHousePlanner() {
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     {polyPoints.length > 0 && (
                       <button
-                        onClick={() => { setPolyPoints(prev => prev.slice(0, -1)); const newP = polyPoints.slice(0, -1); if (newP.length >= 3) { setMeasuredArea(Math.round(calcPolygonAreaSqm(newP))); update("landSize", String(Math.round(calcPolygonAreaSqm(newP)))); } else { setMeasuredArea(null); } }}
+                        onClick={() => { const newP = polyPoints.slice(0, -1); polyPointsRef.current = newP; setPolyPoints(newP); if (newP.length >= 3) { setMeasuredArea(Math.round(calcPolygonAreaSqm(newP))); update("landSize", String(Math.round(calcPolygonAreaSqm(newP)))); } else { setMeasuredArea(null); } updateGooglePolygon(newP); }}
                         style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "4px 10px", color: "#f87171", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
                       >Undo</button>
                     )}
                     {polyPoints.length > 0 && (
                       <button
-                        onClick={() => { setPolyPoints([]); setMeasuredArea(null); }}
+                        onClick={() => { polyPointsRef.current = []; setPolyPoints([]); setMeasuredArea(null); updateGooglePolygon([]); }}
                         style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "4px 10px", color: "#f87171", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
                       ><TrashIcon /> Clear</button>
                     )}
                   </div>
                 </div>
-                <div className="map-container" style={{ height: 380 }}>
-                  <canvas
-                    ref={canvasRef}
-                    width={880}
-                    height={380}
+                <div className="map-container" style={{ height: 420 }}>
+                  <div
+                    ref={mapDivRef}
                     style={{ width: "100%", height: "100%" }}
-                    onClick={handleCanvasClick}
-                    onMouseDown={handleMouseDown}
-                    onContextMenu={e => e.preventDefault()}
                   />
                   {measuredArea && (
                     <div className="map-overlay-badge">
@@ -648,15 +539,10 @@ function TinyHousePlanner() {
                       Measured: {measuredArea.toLocaleString()}m²
                     </div>
                   )}
-                  <div className="map-toolbar">
-                    <button className="map-tool-btn" onClick={() => { setMapZoom(z => Math.min(21, z + 1)); }}>+</button>
-                    <button className="map-tool-btn" onClick={() => { setMapZoom(z => Math.max(15, z - 1)); }}>−</button>
-                  </div>
                   <div className="map-instructions">
-                    {polyPoints.length === 0 ? "Click to place first corner of your property" :
+                    {polyPoints.length === 0 ? "Click on the satellite map to place property corners" :
                      polyPoints.length < 3 ? `${polyPoints.length} point${polyPoints.length > 1 ? "s" : ""} placed — add ${3 - polyPoints.length} more to measure area` :
                      `${polyPoints.length} points · ${measuredArea?.toLocaleString()}m² · Click to add more precision`}
-                     {" · Right-drag to pan"}
                   </div>
                 </div>
                 {measuredArea && (
