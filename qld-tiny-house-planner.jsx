@@ -231,6 +231,7 @@ select.input-field option { background: #1a2a1a; color: #e8ede8; }
 .map-container canvas { display: block; cursor: crosshair; }
 .map-overlay-badge { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #4ade80; font-weight: 600; pointer-events: none; z-index: 2; display: flex; align-items: center; gap: 6px; }
 .map-instructions { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); border-radius: 8px; padding: 6px 14px; font-size: 11px; color: rgba(255,255,255,0.7); pointer-events: none; z-index: 2; white-space: nowrap; }
+.map-dist-label { background: rgba(0,0,0,0.75); padding: 1px 5px; border-radius: 4px; }
 .map-toolbar { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 4px; z-index: 2; }
 .map-tool-btn { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #e8ede8; font-size: 16px; font-weight: 700; transition: all 0.2s; font-family: inherit; }
 .map-tool-btn:hover { background: rgba(34,197,94,0.2); border-color: #22c55e; }
@@ -255,40 +256,103 @@ function TinyHousePlanner() {
   const [address, setAddress] = useState("");
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressResult, setAddressResult] = useState(null); // { lat, lng, formatted }
-  const [mapZoom, setMapZoom] = useState(18);
   const [polyPoints, setPolyPoints] = useState([]); // [{lat,lng}]
   const [measuredArea, setMeasuredArea] = useState(null);
-  const [mapDrag, setMapDrag] = useState(null);
-  const [mapCenter, setMapCenter] = useState(null);
   const mapDivRef = useRef(null);
   const googleMapRef = useRef(null);
   const googlePolygonRef = useRef(null);
   const googleMarkerRef = useRef(null);
   const googleMarkersRef = useRef([]);
   const polyPointsRef = useRef([]);
-  const mapCenterRef = useRef(null);
+  const updatePolygonRef = useRef(null);
+
+  // Helper: clear all polygon markers from the map
+  const clearPolygonOverlays = () => {
+    if (googlePolygonRef.current) { googlePolygonRef.current.setMap(null); googlePolygonRef.current = null; }
+    googleMarkersRef.current.forEach(m => m.setMap(null));
+    googleMarkersRef.current = [];
+  };
+
+  // Update polygon overlay on Google Map (uses regular Markers — no mapId needed)
+  const updateGooglePolygon = useCallback((points) => {
+    if (!googleMapRef.current) return;
+    clearPolygonOverlays();
+
+    if (points.length === 0) return;
+
+    // Single vertex marker
+    if (points.length === 1) {
+      const m = new google.maps.Marker({
+        map: googleMapRef.current, position: points[0], zIndex: 10,
+        label: { text: "1", color: "#000", fontWeight: "bold", fontSize: "10px" },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#4ade80", fillOpacity: 1, strokeColor: "#22c55e", strokeWeight: 2 },
+      });
+      googleMarkersRef.current.push(m);
+      return;
+    }
+
+    // Draw polygon (>= 3 points) or polyline (2 points)
+    const path = points.map(p => ({ lat: p.lat, lng: p.lng }));
+    if (points.length >= 3) {
+      googlePolygonRef.current = new google.maps.Polygon({
+        paths: path, strokeColor: "#22c55e", strokeWeight: 3,
+        fillColor: "#22c55e", fillOpacity: 0.2, map: googleMapRef.current,
+      });
+    } else {
+      googlePolygonRef.current = new google.maps.Polyline({
+        path: path, strokeColor: "#22c55e", strokeWeight: 3, map: googleMapRef.current,
+      });
+    }
+
+    // Numbered vertex markers + edge distance labels
+    const R = 6371000;
+    const toRad = d => d * Math.PI / 180;
+    points.forEach((pt, i) => {
+      const vm = new google.maps.Marker({
+        map: googleMapRef.current, position: pt, zIndex: 10,
+        label: { text: String(i + 1), color: "#000", fontWeight: "bold", fontSize: "10px" },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: i === 0 ? "#4ade80" : "#ffffff", fillOpacity: 1, strokeColor: "#22c55e", strokeWeight: 2 },
+      });
+      googleMarkersRef.current.push(vm);
+
+      // Edge distance label between this point and the next
+      const j = (i + 1) % points.length;
+      if (j === 0 && points.length < 3) return; // skip closing edge when < 3 pts
+      const p1 = points[i], p2 = points[j];
+      const dlat = toRad(p2.lat - p1.lat), dlng = toRad(p2.lng - p1.lng);
+      const a = Math.sin(dlat / 2) ** 2 + Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) * Math.sin(dlng / 2) ** 2;
+      const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const label = dist >= 100 ? `${dist.toFixed(0)}m` : `${dist.toFixed(1)}m`;
+      const lm = new google.maps.Marker({
+        map: googleMapRef.current, zIndex: 5,
+        position: { lat: (p1.lat + p2.lat) / 2, lng: (p1.lng + p2.lng) / 2 },
+        icon: { url: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'), anchor: new google.maps.Point(0, 0) },
+        label: { text: label, color: "#4ade80", fontWeight: "bold", fontSize: "11px", className: "map-dist-label" },
+      });
+      googleMarkersRef.current.push(lm);
+    });
+  }, []);
+
+  // Keep ref in sync so the map click listener always calls the latest version
+  updatePolygonRef.current = updateGooglePolygon;
 
   // Geocode address using local suburb database (no external API needed)
   const geocodeAddress = useCallback(() => {
     if (!address.trim()) return;
     setAddressLoading(true);
-    setAddressResult(null);
 
     // Small delay for UX
     setTimeout(() => {
       const match = findSuburb(address);
       if (match) {
-        // Add slight random offset to simulate street-level position (±0.002 degrees ≈ ±200m)
         const lat = match.lat + (Math.random() - 0.5) * 0.002;
         const lng = match.lng + (Math.random() - 0.5) * 0.002;
         const formatted = `${address.trim()}, ${match.s}, ${match.c}, Queensland`;
         setAddressResult({ lat, lng, formatted });
-        setMapCenter({ lat, lng });
-        mapCenterRef.current = { lat, lng };
         setPolyPoints([]);
         polyPointsRef.current = [];
         setMeasuredArea(null);
-        setMapZoom(19);
+        clearPolygonOverlays();
         update("council", match.c);
         update("suburb", match.s);
       } else {
@@ -298,133 +362,56 @@ function TinyHousePlanner() {
     }, 400);
   }, [address]);
 
-  // Initialize Google Map when addressResult changes
-  const initGoogleMap = useCallback(async () => {
-    if (!mapDivRef.current || !addressResult || addressResult.error) return;
-    const { Map } = await google.maps.importLibrary("maps");
-    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+  // Initialize / update Google Map whenever addressResult changes
+  useEffect(() => {
+    if (!addressResult || addressResult.error || !mapDivRef.current) return;
     const center = { lat: addressResult.lat, lng: addressResult.lng };
 
-    // Create or update map
-    if (!googleMapRef.current) {
-      googleMapRef.current = new Map(mapDivRef.current, {
-        center,
-        zoom: 19,
-        mapTypeId: "satellite",
-        mapId: "TINY_HOUSE_MAP",
-        disableDefaultUI: true,
-        zoomControl: true,
-        gestureHandling: "greedy",
-        tilt: 0,
-      });
+    async function setup() {
+      const { Map } = await google.maps.importLibrary("maps");
+      await google.maps.importLibrary("marker");
 
-      // Click listener to add polygon points
-      googleMapRef.current.addListener("click", (e) => {
-        const pt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-        const newPoints = [...polyPointsRef.current, pt];
-        polyPointsRef.current = newPoints;
-        setPolyPoints([...newPoints]);
-        if (newPoints.length >= 3) {
-          const area = calcPolygonAreaSqm(newPoints);
-          setMeasuredArea(Math.round(area));
-          update("landSize", String(Math.round(area)));
-        }
-        updateGooglePolygon(newPoints);
-      });
-    } else {
-      googleMapRef.current.setCenter(center);
-      googleMapRef.current.setZoom(19);
-    }
-
-    // Clear old marker and polygon
-    if (googleMarkerRef.current) googleMarkerRef.current.map = null;
-    if (googlePolygonRef.current) googlePolygonRef.current.setMap(null);
-    googleMarkersRef.current.forEach(m => m.map = null);
-    googleMarkersRef.current = [];
-
-    // Add marker at address location
-    const pinEl = document.createElement("div");
-    pinEl.innerHTML = `<div style="width:24px;height:24px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`;
-    googleMarkerRef.current = new AdvancedMarkerElement({
-      map: googleMapRef.current,
-      position: center,
-      content: pinEl,
-      title: "Property Location",
-    });
-  }, [addressResult]);
-
-  // Update polygon on Google Map
-  const updateGooglePolygon = useCallback((points) => {
-    if (!googleMapRef.current) return;
-    // Remove old polygon
-    if (googlePolygonRef.current) googlePolygonRef.current.setMap(null);
-    // Remove old vertex markers
-    googleMarkersRef.current.forEach(m => m.map = null);
-    googleMarkersRef.current = [];
-
-    if (points.length < 2) {
-      // Just show a single vertex marker for the first point
-      if (points.length === 1) {
-        const el = document.createElement("div");
-        el.innerHTML = `<div style="width:18px;height:18px;background:#4ade80;border:2px solid #22c55e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:bold;color:#000;">1</div>`;
-        const m = new google.maps.marker.AdvancedMarkerElement({ map: googleMapRef.current, position: points[0], content: el });
-        googleMarkersRef.current.push(m);
+      // If map div was unmounted & remounted, the old map instance is stale
+      if (googleMapRef.current && !mapDivRef.current.firstChild) {
+        googleMapRef.current = null;
       }
-      return;
-    }
 
-    // Draw polygon (or polyline if < 3 points)
-    const path = points.map(p => ({ lat: p.lat, lng: p.lng }));
-    if (points.length >= 3) {
-      googlePolygonRef.current = new google.maps.Polygon({
-        paths: path,
-        strokeColor: "#22c55e",
-        strokeWeight: 3,
-        fillColor: "#22c55e",
-        fillOpacity: 0.2,
-        map: googleMapRef.current,
+      if (!googleMapRef.current) {
+        googleMapRef.current = new Map(mapDivRef.current, {
+          center, zoom: 19, mapTypeId: "satellite",
+          disableDefaultUI: true, zoomControl: true,
+          gestureHandling: "greedy", tilt: 0,
+        });
+
+        // Click to add polygon vertex
+        googleMapRef.current.addListener("click", (e) => {
+          const pt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+          const newPoints = [...polyPointsRef.current, pt];
+          polyPointsRef.current = newPoints;
+          setPolyPoints([...newPoints]);
+          if (newPoints.length >= 3) {
+            const area = calcPolygonAreaSqm(newPoints);
+            setMeasuredArea(Math.round(area));
+            setFormData(prev => ({ ...prev, landSize: String(Math.round(area)) }));
+            setErrors(prev => ({ ...prev, landSize: undefined }));
+          }
+          // Call via ref so we always get the latest function
+          updatePolygonRef.current(newPoints);
+        });
+      } else {
+        googleMapRef.current.setCenter(center);
+        googleMapRef.current.setZoom(19);
+      }
+
+      // Update address pin
+      if (googleMarkerRef.current) googleMarkerRef.current.setMap(null);
+      googleMarkerRef.current = new google.maps.Marker({
+        map: googleMapRef.current, position: center, zIndex: 20,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 12, fillColor: "#ef4444", fillOpacity: 1, strokeColor: "#ffffff", strokeWeight: 3 },
       });
-    } else {
-      googlePolygonRef.current = new google.maps.Polyline({
-        path: path,
-        strokeColor: "#22c55e",
-        strokeWeight: 3,
-        map: googleMapRef.current,
-      });
     }
-
-    // Add numbered vertex markers and edge labels
-    const R = 6371000;
-    const toRad = d => d * Math.PI / 180;
-    points.forEach((pt, i) => {
-      const el = document.createElement("div");
-      el.innerHTML = `<div style="width:18px;height:18px;background:${i === 0 ? '#4ade80' : '#fff'};border:2px solid #22c55e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:bold;color:#000;">${i + 1}</div>`;
-      const m = new google.maps.marker.AdvancedMarkerElement({ map: googleMapRef.current, position: pt, content: el });
-      googleMarkersRef.current.push(m);
-
-      // Edge distance label
-      const j = (i + 1) % points.length;
-      if (j === 0 && points.length < 3) return;
-      const p1 = points[i], p2 = points[j];
-      const dlat = toRad(p2.lat - p1.lat), dlng = toRad(p2.lng - p1.lng);
-      const a = Math.sin(dlat / 2) ** 2 + Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) * Math.sin(dlng / 2) ** 2;
-      const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const midLat = (p1.lat + p2.lat) / 2;
-      const midLng = (p1.lng + p2.lng) / 2;
-      const label = dist >= 100 ? `${dist.toFixed(0)}m` : `${dist.toFixed(1)}m`;
-      const labelEl = document.createElement("div");
-      labelEl.innerHTML = `<div style="background:rgba(0,0,0,0.8);color:#4ade80;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold;white-space:nowrap;">${label}</div>`;
-      const lm = new google.maps.marker.AdvancedMarkerElement({ map: googleMapRef.current, position: { lat: midLat, lng: midLng }, content: labelEl });
-      googleMarkersRef.current.push(lm);
-    });
-  }, []);
-
-  // Initialize map when address result or map div is ready
-  useEffect(() => {
-    if (addressResult && !addressResult.error && mapDivRef.current) {
-      initGoogleMap();
-    }
-  }, [addressResult, initGoogleMap]);
+    setup();
+  }, [addressResult]);
 
   const update = (key, value) => { setFormData(prev => ({ ...prev, [key]: value })); setErrors(prev => ({ ...prev, [key]: undefined })); };
   const validateStep = (s) => {
@@ -436,7 +423,7 @@ function TinyHousePlanner() {
   };
   const nextStep = () => { if (validateStep(step)) { if (step === 2) { setPlan(generatePlan(formData)); setStep(3); } else { setStep(s => s + 1); } } };
   const prevStep = () => setStep(s => Math.max(0, s - 1));
-  const resetAll = () => { setStep(0); setPlan(null); setResultTab("overview"); setFormData({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "", purpose: "family" }); setAddress(""); setAddressResult(null); setPolyPoints([]); polyPointsRef.current = []; setMeasuredArea(null); setMapCenter(null); mapCenterRef.current = null; if (googlePolygonRef.current) { googlePolygonRef.current.setMap(null); googlePolygonRef.current = null; } if (googleMarkerRef.current) { googleMarkerRef.current.map = null; googleMarkerRef.current = null; } googleMarkersRef.current.forEach(m => m.map = null); googleMarkersRef.current = []; googleMapRef.current = null; };
+  const resetAll = () => { setStep(0); setPlan(null); setResultTab("overview"); setFormData({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "", purpose: "family" }); setAddress(""); setAddressResult(null); setPolyPoints([]); polyPointsRef.current = []; setMeasuredArea(null); clearPolygonOverlays(); if (googleMarkerRef.current) { googleMarkerRef.current.setMap(null); googleMarkerRef.current = null; } googleMapRef.current = null; };
   const fmt = (n) => "$" + Math.round(n).toLocaleString();
   const pf = "'Playfair Display', Georgia, serif";
 
@@ -516,13 +503,13 @@ function TinyHousePlanner() {
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     {polyPoints.length > 0 && (
                       <button
-                        onClick={() => { const newP = polyPoints.slice(0, -1); polyPointsRef.current = newP; setPolyPoints(newP); if (newP.length >= 3) { setMeasuredArea(Math.round(calcPolygonAreaSqm(newP))); update("landSize", String(Math.round(calcPolygonAreaSqm(newP)))); } else { setMeasuredArea(null); } updateGooglePolygon(newP); }}
+                        onClick={() => { const newP = polyPoints.slice(0, -1); polyPointsRef.current = newP; setPolyPoints(newP); if (newP.length >= 3) { const a = Math.round(calcPolygonAreaSqm(newP)); setMeasuredArea(a); update("landSize", String(a)); } else { setMeasuredArea(null); } updateGooglePolygon(newP); }}
                         style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "4px 10px", color: "#f87171", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
                       >Undo</button>
                     )}
                     {polyPoints.length > 0 && (
                       <button
-                        onClick={() => { polyPointsRef.current = []; setPolyPoints([]); setMeasuredArea(null); updateGooglePolygon([]); }}
+                        onClick={() => { polyPointsRef.current = []; setPolyPoints([]); setMeasuredArea(null); clearPolygonOverlays(); }}
                         style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "4px 10px", color: "#f87171", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
                       ><TrashIcon /> Clear</button>
                     )}
