@@ -7,11 +7,23 @@
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a1628; color: #e8ede8; font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif; }
+        .map-overlay-badge { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); border-radius:8px; padding:8px 12px; font-size:12px; color:#4ade80; font-weight:600; pointer-events:none; z-index:2; display:flex; align-items:center; gap:6px; }
+        .map-instructions { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); border-radius:8px; padding:6px 14px; font-size:11px; color:rgba(255,255,255,0.8); pointer-events:none; z-index:2; white-space:nowrap; }
+        .map-dist-label { background:rgba(0,0,0,0.75); padding:1px 5px; border-radius:4px; }
+        #root { min-height: 100vh; }
+    </style>
     <script>window.__gmapsReady = new Promise(r => window.__gmapsInit = r);</script>
     <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBrniJBLkZaQNhuPbP7VgVMijEFpe4PNkA&callback=__gmapsInit&v=weekly"></script>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root"><p style="color:#888;padding:40px;text-align:center;">Loading...</p></div>
     <script type="text/babel" src="qld-tiny-house-planner.jsx"></script>
 </body>
 </html>
