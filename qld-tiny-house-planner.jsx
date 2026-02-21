@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+const { useState, useEffect, useRef, useCallback } = React;
 
 const QLD_COUNCILS = {
   "Brisbane City": { maxGFA: 80, minLot: 450, zone: "LDR", proximityRule: 20 },
@@ -244,7 +244,7 @@ select.input-field option { background: #1a2a1a; color: #e8ede8; }
 }
 `;
 
-export default function TinyHousePlanner() {
+function TinyHousePlanner() {
   const [step, setStep] = useState(0);
   const [resultTab, setResultTab] = useState("overview");
   const [formData, setFormData] = useState({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "", purpose: "family" });
@@ -1034,3 +1034,5 @@ export default function TinyHousePlanner() {
     </div>
   );
 }
+
+ReactDOM.createRoot(document.getElementById("root")).render(<TinyHousePlanner />);
