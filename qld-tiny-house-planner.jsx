@@ -341,7 +341,7 @@ function TinyHousePlanner() {
         if (j === 0 && points.length < 3) continue;
         const p1 = points[i], p2 = points[j];
         const dlat = toRad(p2.lat-p1.lat), dlng = toRad(p2.lng-p1.lng);
-        const a = Math.sin(dlat/2)**2 + Math.cos(toRad(p1.lat))*Math.cos(toRad(p2.lat))*Math.sin(dlng/2)**2;
+        const a = Math.pow(Math.sin(dlat/2),2) + Math.cos(toRad(p1.lat))*Math.cos(toRad(p2.lat))*Math.pow(Math.sin(dlng/2),2);
         const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         const txt = dist >= 100 ? dist.toFixed(0)+"m" : dist.toFixed(1)+"m";
         const lm = new gm.Marker({
@@ -547,7 +547,7 @@ function TinyHousePlanner() {
                   <div className="map-instructions">
                     {polyPoints.length === 0 ? "Click on the satellite map to place property corners" :
                      polyPoints.length < 3 ? `${polyPoints.length} point${polyPoints.length > 1 ? "s" : ""} placed — add ${3 - polyPoints.length} more to measure area` :
-                     `${polyPoints.length} points · ${measuredArea?.toLocaleString()}m² · Click to add more precision`}
+                     `${polyPoints.length} points · ${measuredArea ? measuredArea.toLocaleString() : ""}m² · Click to add more precision`}
                   </div>
                 </div>
                 {measuredArea && (
@@ -630,7 +630,7 @@ function TinyHousePlanner() {
               <label style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.6)", display: "block", marginBottom: 6 }}>
                 Desired Size (m²){formData.council && <span style={{ color: "#4ade80" }}> · Max {QLD_COUNCILS[formData.council].maxGFA}m² for {formData.council}</span>}
               </label>
-              <input className="input-field" type="number" placeholder={`e.g. ${BEDROOMS.find(b => b.value === formData.bedrooms)?.sqmRange[1]}`} value={formData.constructionSize} onChange={e => update("constructionSize", e.target.value)} style={{ maxWidth: 200 }} />
+              <input className="input-field" type="number" placeholder={`e.g. ${(BEDROOMS.find(b => b.value === formData.bedrooms) || {sqmRange:[0,50]}).sqmRange[1]}`} value={formData.constructionSize} onChange={e => update("constructionSize", e.target.value)} style={{ maxWidth: 200 }} />
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.6)", display: "block", marginBottom: 10 }}>Construction Material *</label>
@@ -701,7 +701,7 @@ function TinyHousePlanner() {
             <div className="card" style={{ background: "rgba(255,255,255,0.02)", padding: 16, marginBottom: 4 }}>
               <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: "rgba(255,255,255,0.7)" }}>Your Selections Summary</p>
               <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
-                {[["Council", formData.council || "—"], ["Land Size", formData.landSize ? `${formData.landSize}m²` : "—"], ...(addressResult && !addressResult.error ? [["Address", addressResult.formatted.split(",").slice(0, 2).join(",")]] : []), ["Bedrooms", BEDROOMS.find(b => b.value === formData.bedrooms)?.label], ["Size", formData.constructionSize ? `${formData.constructionSize}m²` : "Auto"], ["Material", formData.material ? MATERIALS[formData.material].label : "—"], ["Finish", FINISH_LEVELS[formData.finishLevel].label]].map(([label, val], i) => (
+                {[["Council", formData.council || "—"], ["Land Size", formData.landSize ? `${formData.landSize}m²` : "—"], ...(addressResult && !addressResult.error ? [["Address", addressResult.formatted.split(",").slice(0, 2).join(",")]] : []), ["Bedrooms", (BEDROOMS.find(b => b.value === formData.bedrooms) || {}).label], ["Size", formData.constructionSize ? `${formData.constructionSize}m²` : "Auto"], ["Material", formData.material ? MATERIALS[formData.material].label : "—"], ["Finish", FINISH_LEVELS[formData.finishLevel].label]].map(([label, val], i) => (
                   <div key={i} style={{ fontSize: 13 }}><span style={{ color: "rgba(255,255,255,0.4)" }}>{label}: </span><span style={{ fontWeight: 500 }}>{val}</span></div>
                 ))}
               </div>
