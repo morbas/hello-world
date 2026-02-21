@@ -1,5 +1,20 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
+// Icon components using Font Awesome
+const HouseIcon = () => <i className="fa-solid fa-house" style={{ fontSize: 20, color: "#fff" }} />;
+const MapIcon = () => <i className="fa-solid fa-map-location-dot" style={{ fontSize: 18, color: "#22c55e" }} />;
+const SearchIcon = () => <i className="fa-solid fa-magnifying-glass" style={{ fontSize: 14 }} />;
+const CrosshairIcon = () => <i className="fa-solid fa-crosshairs" style={{ fontSize: 12, marginRight: 4 }} />;
+const TrashIcon = () => <i className="fa-solid fa-trash" style={{ fontSize: 11 }} />;
+const AlertIcon = () => <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 14, color: "#fbbf24" }} />;
+const ChevronRight = () => <i className="fa-solid fa-chevron-right" style={{ fontSize: 11, marginLeft: 4 }} />;
+const ChevronLeft = () => <i className="fa-solid fa-chevron-left" style={{ fontSize: 11, marginRight: 4 }} />;
+const RulerIcon = () => <i className="fa-solid fa-ruler" style={{ fontSize: 18, color: "#22c55e" }} />;
+const CheckIcon = () => <i className="fa-solid fa-check" style={{ fontSize: 14 }} />;
+const DollarIcon = () => <i className="fa-solid fa-dollar-sign" style={{ fontSize: 18, color: "#22c55e" }} />;
+const CalendarIcon = () => <i className="fa-solid fa-calendar" style={{ fontSize: 18, color: "#22c55e" }} />;
+const ClipboardIcon = () => <i className="fa-solid fa-clipboard" style={{ fontSize: 18, color: "#22c55e" }} />;
+
 const QLD_COUNCILS = {
   "Brisbane City": { maxGFA: 80, minLot: 450, zone: "LDR", proximityRule: 20 },
   "Gold Coast": { maxGFA: 80, minLot: 450, zone: "LDR", proximityRule: 20 },
@@ -174,20 +189,42 @@ function generatePlan(data) {
   return { finalSize, sizeWarning, maxAllowed, totalCost, budgetDiff, adjustedWeeks, needsDA, approvalPath, alternatives, schedule, permits, budgetBreakdown, council, material, finish, weeklyRent, annualRent, roi };
 }
 
-const Svg = ({ children, size = 20, ...props }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>{children}</svg>;
-const HouseIcon = () => <Svg size={24}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></Svg>;
-const MapIcon = () => <Svg><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></Svg>;
-const RulerIcon = () => <Svg><path d="M2 4h4v16H2z"/><path d="M6 12h4"/><path d="M6 8h2"/><path d="M6 16h2"/><path d="M18 4h4v16h-4z"/><path d="M14 12h4"/><path d="M16 8h2"/><path d="M16 16h2"/><path d="M6 4h12v4H6z"/><path d="M6 16h12v4H6z"/></Svg>;
-const DollarIcon = () => <Svg><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></Svg>;
-const CheckIcon = () => <Svg size={16} strokeWidth={3}><polyline points="20 6 9 17 4 12"/></Svg>;
-const AlertIcon = () => <Svg size={16}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></Svg>;
-const ChevronRight = () => <Svg size={18} strokeWidth={2.5}><polyline points="9 18 15 12 9 6"/></Svg>;
-const ChevronLeft = () => <Svg size={18} strokeWidth={2.5}><polyline points="15 18 9 12 15 6"/></Svg>;
-const CalendarIcon = () => <Svg><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></Svg>;
-const ClipboardIcon = () => <Svg><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></Svg>;
-const SearchIcon = () => <Svg size={16}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></Svg>;
-const CrosshairIcon = () => <Svg size={16}><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></Svg>;
-const TrashIcon = () => <Svg size={14}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></Svg>;
+const css = `
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.4s ease-out; }
+  .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 24px; }
+  .input-field { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 14px; color: #e8ede8; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+  .input-field:focus { border-color: #22c55e; }
+  .input-field option { background: #1a2a3a; color: #e8ede8; }
+  .error-text { font-size: 12px; color: #f87171; margin-top: 6px; }
+  .address-search-wrap { display: flex; gap: 8px; }
+  .search-btn { background: linear-gradient(135deg, #22c55e, #059669); border: none; border-radius: 10px; padding: 0 16px; color: #fff; cursor: pointer; display: flex; align-items: center; font-size: 16px; }
+  .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .map-container { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .badge-green { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .badge-amber { background: rgba(245,158,11,0.15); color: #fbbf24; }
+  @keyframes pulseGreen { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); } 50% { box-shadow: 0 0 0 6px rgba(34,197,94,0); } }
+  .pulse-green { animation: pulseGreen 2s infinite; border-radius: 6px; }
+  .finish-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 20px; color: #e8ede8; cursor: pointer; font-family: inherit; text-align: left; transition: all 0.2s; }
+  .finish-btn:hover { border-color: rgba(34,197,94,0.3); }
+  .finish-btn.selected { border-color: #22c55e; background: rgba(34,197,94,0.08); }
+  .material-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; cursor: pointer; transition: all 0.2s; }
+  .material-card:hover { border-color: rgba(34,197,94,0.3); }
+  .material-card.selected { border-color: #22c55e; background: rgba(34,197,94,0.06); }
+  .btn-primary { background: linear-gradient(135deg, #22c55e, #059669); border: none; border-radius: 12px; padding: 14px 28px; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 4px; transition: transform 0.2s, box-shadow 0.2s; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(34,197,94,0.3); }
+  .btn-secondary { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 28px; color: #e8ede8; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 4px; transition: all 0.2s; }
+  .btn-secondary:hover { border-color: rgba(255,255,255,0.2); }
+  .tab-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 18px; color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; white-space: nowrap; }
+  .tab-btn:hover { color: #e8ede8; border-color: rgba(255,255,255,0.15); }
+  .tab-btn.active { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.3); color: #4ade80; }
+  .card-hover { transition: all 0.2s; }
+  .card-hover:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); }
+  @media (max-width: 640px) {
+    .grid-2 { grid-template-columns: 1fr !important; }
+  }
+`;
 
 const STEPS = ["Location & Land", "Design & Materials", "Budget & Purpose", "Your Plan"];
 
