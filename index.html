@@ -1,22 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QLD Tiny House Planner</title>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QLD Tiny House Planner</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.development.js" crossorigin></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.development.js" crossorigin></script>
 </head>
 <body>
-  <div id="root"></div>
-  
-  <script type="text/babel">
-    // Paste your entire qld-tiny-house-planner.jsx code here
-    // (from import statement to the end)
-    
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<TinyHousePlanner />);
-  </script>
+    <div id="root"></div>
+    <script>
+        // TinyHousePlanner Component Code
+        const TinyHousePlanner = () => {
+            return (
+                <div>
+                    <h1>QLD Tiny House Planner</h1>
+                    <div id="map-placeholder">[Interactive Map Goes Here]</div>
+                    <div>
+                        <h2>Suburb Database:</h2>
+                        <ul>
+                            <li>Suburb 1</li>
+                            <li>Suburb 2</li>
+                            <li>Suburb 3</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h2>Cost Calculations:</h2>
+                        <p>[Cost Calculation Logic Goes Here]</p>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<TinyHousePlanner />, document.getElementById('root'));
+    </script>
 </body>
 </html>
