@@ -4,32 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QLD Tiny House Planner</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .card-hover { transition: all 0.3s ease; }
-        .card-hover:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.1); }
-        .material-card { border: 2px solid #e5e7eb; transition: all 0.3s ease; }
-        .material-card:hover { border-color: #667eea; box-shadow: 0 10px 30px rgba(102,126,234,0.15); }
-        .material-card.selected { border-color: #667eea; background: linear-gradient(135deg, rgba(102,126,234,0.05) 0%, rgba(118,75,162,0.05) 100%); }
-        .finish-card { border: 2px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer; }
-        .finish-card:hover { border-color: #667eea; }
-        .finish-card.selected { border-color: #667eea; background: rgba(102,126,234,0.05); }
-        @keyframes slideIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-        .animate-slide { animation: slideIn 0.5s ease-out; }
-        .map-overlay-badge { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); border-radius:8px; padding:8px 12px; font-size:12px; color:#4ade80; font-weight:600; pointer-events:none; z-index:2; display:flex; align-items:center; gap:6px; }
-        .map-instructions { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); border-radius:8px; padding:6px 14px; font-size:11px; color:rgba(255,255,255,0.8); pointer-events:none; z-index:2; white-space:nowrap; }
-        .map-dist-label { background:rgba(0,0,0,0.75); padding:1px 5px; border-radius:4px; }
-    </style>
     <script>window.__gmapsReady = new Promise(r => window.__gmapsInit = r);</script>
     <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBrniJBLkZaQNhuPbP7VgVMijEFpe4PNkA&callback=__gmapsInit&v=weekly"></script>
 </head>
-<body class="bg-gray-50">
+<body>
     <div id="root"></div>
     <script type="text/babel" src="qld-tiny-house-planner.jsx"></script>
 </body>
