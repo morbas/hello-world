@@ -259,100 +259,78 @@ function TinyHousePlanner() {
   const [polyPoints, setPolyPoints] = useState([]); // [{lat,lng}]
   const [measuredArea, setMeasuredArea] = useState(null);
   const mapDivRef = useRef(null);
-  const googleMapRef = useRef(null);
-  const googlePolygonRef = useRef(null);
-  const googleMarkerRef = useRef(null);
-  const googleMarkersRef = useRef([]);
-  const polyPointsRef = useRef([]);
-  const updatePolygonRef = useRef(null);
+  const gMapRef = useRef(null);       // google.maps.Map instance
+  const gPinRef = useRef(null);       // address pin marker
+  const gPolyRef = useRef(null);      // polygon/polyline shape
+  const gOverlays = useRef([]);       // vertex + label markers
+  const polyPtsRef = useRef([]);      // always-current polygon points
 
-  // Helper: clear all polygon markers from the map
-  const clearPolygonOverlays = () => {
-    if (googlePolygonRef.current) { googlePolygonRef.current.setMap(null); googlePolygonRef.current = null; }
-    googleMarkersRef.current.forEach(m => m.setMap(null));
-    googleMarkersRef.current = [];
+  // Helper: remove polygon overlays from map
+  const clearOverlays = () => {
+    try {
+      if (gPolyRef.current) { gPolyRef.current.setMap(null); gPolyRef.current = null; }
+      gOverlays.current.forEach(m => { try { m.setMap(null); } catch(e){} });
+      gOverlays.current = [];
+    } catch(e){}
   };
 
-  // Update polygon overlay on Google Map (uses regular Markers — no mapId needed)
-  const updateGooglePolygon = useCallback((points) => {
-    if (!googleMapRef.current) return;
-    clearPolygonOverlays();
-
-    if (points.length === 0) return;
-
-    // Single vertex marker
-    if (points.length === 1) {
-      const m = new google.maps.Marker({
-        map: googleMapRef.current, position: points[0], zIndex: 10,
-        label: { text: "1", color: "#000", fontWeight: "bold", fontSize: "10px" },
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#4ade80", fillOpacity: 1, strokeColor: "#22c55e", strokeWeight: 2 },
+  // Redraw polygon + vertex markers + distance labels on the Google Map
+  const redrawPolygon = (points) => {
+    if (!gMapRef.current || !window.google) return;
+    clearOverlays();
+    if (!points.length) return;
+    try {
+      const gm = google.maps;
+      // Vertex markers
+      points.forEach((pt, i) => {
+        const m = new gm.Marker({
+          map: gMapRef.current, position: pt, zIndex: 10,
+          label: { text: String(i+1), color: "#000", fontWeight: "bold", fontSize: "10px" },
+          icon: { path: gm.SymbolPath.CIRCLE, scale: 9, fillColor: i===0 ? "#4ade80" : "#fff", fillOpacity: 1, strokeColor: "#22c55e", strokeWeight: 2 },
+        });
+        gOverlays.current.push(m);
       });
-      googleMarkersRef.current.push(m);
-      return;
-    }
+      // Shape
+      const path = points.map(p => new gm.LatLng(p.lat, p.lng));
+      if (points.length >= 3) {
+        gPolyRef.current = new gm.Polygon({ paths: path, strokeColor: "#22c55e", strokeWeight: 3, fillColor: "#22c55e", fillOpacity: 0.15, map: gMapRef.current });
+      } else if (points.length === 2) {
+        gPolyRef.current = new gm.Polyline({ path: path, strokeColor: "#22c55e", strokeWeight: 3, map: gMapRef.current });
+      }
+      // Edge distance labels
+      const R = 6371000, toRad = d => d * Math.PI / 180;
+      for (let i = 0; i < points.length; i++) {
+        const j = (i+1) % points.length;
+        if (j === 0 && points.length < 3) continue;
+        const p1 = points[i], p2 = points[j];
+        const dlat = toRad(p2.lat-p1.lat), dlng = toRad(p2.lng-p1.lng);
+        const a = Math.sin(dlat/2)**2 + Math.cos(toRad(p1.lat))*Math.cos(toRad(p2.lat))*Math.sin(dlng/2)**2;
+        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const txt = dist >= 100 ? dist.toFixed(0)+"m" : dist.toFixed(1)+"m";
+        const lm = new gm.Marker({
+          map: gMapRef.current, position: { lat:(p1.lat+p2.lat)/2, lng:(p1.lng+p2.lng)/2 }, zIndex: 5, clickable: false,
+          icon: { path: "M 0,0", scale: 0 },
+          label: { text: txt, color: "#4ade80", fontWeight: "bold", fontSize: "11px", className: "map-dist-label" },
+        });
+        gOverlays.current.push(lm);
+      }
+    } catch(e) { console.warn("polygon draw error:", e); }
+  };
 
-    // Draw polygon (>= 3 points) or polyline (2 points)
-    const path = points.map(p => ({ lat: p.lat, lng: p.lng }));
-    if (points.length >= 3) {
-      googlePolygonRef.current = new google.maps.Polygon({
-        paths: path, strokeColor: "#22c55e", strokeWeight: 3,
-        fillColor: "#22c55e", fillOpacity: 0.2, map: googleMapRef.current,
-      });
-    } else {
-      googlePolygonRef.current = new google.maps.Polyline({
-        path: path, strokeColor: "#22c55e", strokeWeight: 3, map: googleMapRef.current,
-      });
-    }
-
-    // Numbered vertex markers + edge distance labels
-    const R = 6371000;
-    const toRad = d => d * Math.PI / 180;
-    points.forEach((pt, i) => {
-      const vm = new google.maps.Marker({
-        map: googleMapRef.current, position: pt, zIndex: 10,
-        label: { text: String(i + 1), color: "#000", fontWeight: "bold", fontSize: "10px" },
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: i === 0 ? "#4ade80" : "#ffffff", fillOpacity: 1, strokeColor: "#22c55e", strokeWeight: 2 },
-      });
-      googleMarkersRef.current.push(vm);
-
-      // Edge distance label between this point and the next
-      const j = (i + 1) % points.length;
-      if (j === 0 && points.length < 3) return; // skip closing edge when < 3 pts
-      const p1 = points[i], p2 = points[j];
-      const dlat = toRad(p2.lat - p1.lat), dlng = toRad(p2.lng - p1.lng);
-      const a = Math.sin(dlat / 2) ** 2 + Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) * Math.sin(dlng / 2) ** 2;
-      const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const label = dist >= 100 ? `${dist.toFixed(0)}m` : `${dist.toFixed(1)}m`;
-      const lm = new google.maps.Marker({
-        map: googleMapRef.current, zIndex: 5,
-        position: { lat: (p1.lat + p2.lat) / 2, lng: (p1.lng + p2.lng) / 2 },
-        icon: { url: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'), anchor: new google.maps.Point(0, 0) },
-        label: { text: label, color: "#4ade80", fontWeight: "bold", fontSize: "11px", className: "map-dist-label" },
-      });
-      googleMarkersRef.current.push(lm);
-    });
-  }, []);
-
-  // Keep ref in sync so the map click listener always calls the latest version
-  updatePolygonRef.current = updateGooglePolygon;
-
-  // Geocode address using local suburb database (no external API needed)
+  // Geocode address using local suburb database
   const geocodeAddress = useCallback(() => {
     if (!address.trim()) return;
     setAddressLoading(true);
-
-    // Small delay for UX
     setTimeout(() => {
       const match = findSuburb(address);
       if (match) {
-        const lat = match.lat + (Math.random() - 0.5) * 0.002;
-        const lng = match.lng + (Math.random() - 0.5) * 0.002;
+        const lat = match.lat + (Math.random()-0.5)*0.002;
+        const lng = match.lng + (Math.random()-0.5)*0.002;
         const formatted = `${address.trim()}, ${match.s}, ${match.c}, Queensland`;
         setAddressResult({ lat, lng, formatted });
-        setPolyPoints([]);
-        polyPointsRef.current = [];
+        setPolyPoints([]); polyPtsRef.current = [];
         setMeasuredArea(null);
-        clearPolygonOverlays();
+        clearOverlays();
         update("council", match.c);
         update("suburb", match.s);
       } else {
@@ -362,55 +340,58 @@ function TinyHousePlanner() {
     }, 400);
   }, [address]);
 
-  // Initialize / update Google Map whenever addressResult changes
+  // Initialize / update Google Map when addressResult changes
   useEffect(() => {
     if (!addressResult || addressResult.error || !mapDivRef.current) return;
     const center = { lat: addressResult.lat, lng: addressResult.lng };
+    let cancelled = false;
 
-    async function setup() {
-      const { Map } = await google.maps.importLibrary("maps");
-      await google.maps.importLibrary("marker");
+    (async () => {
+      // Wait for Google Maps API to load
+      try { await window.__gmapsReady; } catch(e) { return; }
+      if (cancelled || !window.google || !google.maps) return;
+      const gm = google.maps;
 
-      // If map div was unmounted & remounted, the old map instance is stale
-      if (googleMapRef.current && !mapDivRef.current.firstChild) {
-        googleMapRef.current = null;
+      // Detect stale map (div was unmounted/remounted by React)
+      if (gMapRef.current && mapDivRef.current && !mapDivRef.current.querySelector(".gm-style")) {
+        gMapRef.current = null;
       }
 
-      if (!googleMapRef.current) {
-        googleMapRef.current = new Map(mapDivRef.current, {
+      if (!gMapRef.current) {
+        gMapRef.current = new gm.Map(mapDivRef.current, {
           center, zoom: 19, mapTypeId: "satellite",
           disableDefaultUI: true, zoomControl: true,
           gestureHandling: "greedy", tilt: 0,
         });
-
-        // Click to add polygon vertex
-        googleMapRef.current.addListener("click", (e) => {
+        // Click listener — uses polyPtsRef so it always has latest points
+        gMapRef.current.addListener("click", (e) => {
           const pt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-          const newPoints = [...polyPointsRef.current, pt];
-          polyPointsRef.current = newPoints;
-          setPolyPoints([...newPoints]);
-          if (newPoints.length >= 3) {
-            const area = calcPolygonAreaSqm(newPoints);
-            setMeasuredArea(Math.round(area));
-            setFormData(prev => ({ ...prev, landSize: String(Math.round(area)) }));
+          const newPts = [...polyPtsRef.current, pt];
+          polyPtsRef.current = newPts;
+          setPolyPoints([...newPts]);
+          if (newPts.length >= 3) {
+            const area = Math.round(calcPolygonAreaSqm(newPts));
+            setMeasuredArea(area);
+            setFormData(prev => ({ ...prev, landSize: String(area) }));
             setErrors(prev => ({ ...prev, landSize: undefined }));
           }
-          // Call via ref so we always get the latest function
-          updatePolygonRef.current(newPoints);
+          redrawPolygon(newPts);
         });
       } else {
-        googleMapRef.current.setCenter(center);
-        googleMapRef.current.setZoom(19);
+        gMapRef.current.setCenter(center);
+        gMapRef.current.setZoom(19);
       }
 
-      // Update address pin
-      if (googleMarkerRef.current) googleMarkerRef.current.setMap(null);
-      googleMarkerRef.current = new google.maps.Marker({
-        map: googleMapRef.current, position: center, zIndex: 20,
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 12, fillColor: "#ef4444", fillOpacity: 1, strokeColor: "#ffffff", strokeWeight: 3 },
-      });
-    }
-    setup();
+      // Address pin
+      try {
+        if (gPinRef.current) gPinRef.current.setMap(null);
+        gPinRef.current = new gm.Marker({
+          map: gMapRef.current, position: center, zIndex: 20,
+          icon: { path: gm.SymbolPath.CIRCLE, scale: 12, fillColor: "#ef4444", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 },
+        });
+      } catch(e) { console.warn("pin error:", e); }
+    })();
+    return () => { cancelled = true; };
   }, [addressResult]);
 
   const update = (key, value) => { setFormData(prev => ({ ...prev, [key]: value })); setErrors(prev => ({ ...prev, [key]: undefined })); };
@@ -423,7 +404,7 @@ function TinyHousePlanner() {
   };
   const nextStep = () => { if (validateStep(step)) { if (step === 2) { setPlan(generatePlan(formData)); setStep(3); } else { setStep(s => s + 1); } } };
   const prevStep = () => setStep(s => Math.max(0, s - 1));
-  const resetAll = () => { setStep(0); setPlan(null); setResultTab("overview"); setFormData({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "", purpose: "family" }); setAddress(""); setAddressResult(null); setPolyPoints([]); polyPointsRef.current = []; setMeasuredArea(null); clearPolygonOverlays(); if (googleMarkerRef.current) { googleMarkerRef.current.setMap(null); googleMarkerRef.current = null; } googleMapRef.current = null; };
+  const resetAll = () => { setStep(0); setPlan(null); setResultTab("overview"); setFormData({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "", purpose: "family" }); setAddress(""); setAddressResult(null); setPolyPoints([]); polyPtsRef.current = []; setMeasuredArea(null); clearOverlays(); if (gPinRef.current) { try { gPinRef.current.setMap(null); } catch(e){} gPinRef.current = null; } gMapRef.current = null; };
   const fmt = (n) => "$" + Math.round(n).toLocaleString();
   const pf = "'Playfair Display', Georgia, serif";
 
@@ -503,13 +484,13 @@ function TinyHousePlanner() {
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     {polyPoints.length > 0 && (
                       <button
-                        onClick={() => { const newP = polyPoints.slice(0, -1); polyPointsRef.current = newP; setPolyPoints(newP); if (newP.length >= 3) { const a = Math.round(calcPolygonAreaSqm(newP)); setMeasuredArea(a); update("landSize", String(a)); } else { setMeasuredArea(null); } updateGooglePolygon(newP); }}
+                        onClick={() => { const newP = polyPoints.slice(0, -1); polyPtsRef.current = newP; setPolyPoints(newP); if (newP.length >= 3) { const a = Math.round(calcPolygonAreaSqm(newP)); setMeasuredArea(a); update("landSize", String(a)); } else { setMeasuredArea(null); } redrawPolygon(newP); }}
                         style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "4px 10px", color: "#f87171", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
                       >Undo</button>
                     )}
                     {polyPoints.length > 0 && (
                       <button
-                        onClick={() => { polyPointsRef.current = []; setPolyPoints([]); setMeasuredArea(null); clearPolygonOverlays(); }}
+                        onClick={() => { polyPtsRef.current = []; setPolyPoints([]); setMeasuredArea(null); clearOverlays(); }}
                         style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "4px 10px", color: "#f87171", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}
                       ><TrashIcon /> Clear</button>
                     )}
