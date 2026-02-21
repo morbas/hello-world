@@ -7,22 +7,36 @@
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #0a1628; color: #e8ede8; font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.1); }
+        .material-card { border: 2px solid #e5e7eb; transition: all 0.3s ease; border-radius: 12px; }
+        .material-card:hover { border-color: #667eea; box-shadow: 0 8px 24px rgba(102,126,234,0.15); }
+        .material-card.selected { border-color: #667eea; background: linear-gradient(135deg, rgba(102,126,234,0.05), rgba(118,75,162,0.05)); }
+        .finish-btn { border: 2px solid #e5e7eb; transition: all 0.2s; border-radius: 10px; }
+        .finish-btn:hover { border-color: #a5b4fc; }
+        .finish-btn.selected { border-color: #667eea; background: linear-gradient(135deg, rgba(102,126,234,0.06), rgba(118,75,162,0.06)); }
+        .tab-active { border-bottom: 3px solid #667eea; color: #667eea; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 8px; border-radius: 4px; background: #e2e8f0; outline: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); cursor: pointer; box-shadow: 0 2px 8px rgba(102,126,234,0.4); }
+        input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); cursor: pointer; border: none; }
         .map-overlay-badge { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); border-radius:8px; padding:8px 12px; font-size:12px; color:#4ade80; font-weight:600; pointer-events:none; z-index:2; display:flex; align-items:center; gap:6px; }
         .map-instructions { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); border-radius:8px; padding:6px 14px; font-size:11px; color:rgba(255,255,255,0.8); pointer-events:none; z-index:2; white-space:nowrap; }
         .map-dist-label { background:rgba(0,0,0,0.75); padding:1px 5px; border-radius:4px; }
-        #root { min-height: 100vh; }
+        @keyframes slideIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        .animate-slide { animation: slideIn 0.4s ease-out; }
     </style>
     <script>window.__gmapsReady = new Promise(r => window.__gmapsInit = r);</script>
     <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBrniJBLkZaQNhuPbP7VgVMijEFpe4PNkA&callback=__gmapsInit&v=weekly"></script>
 </head>
-<body>
+<body class="bg-gray-50">
     <div id="root"><p style="color:#888;padding:40px;text-align:center;">Loading...</p></div>
     <script>
       fetch('qld-tiny-house-planner.jsx')
@@ -33,7 +47,7 @@
         })
         .catch(function(err) {
           document.getElementById('root').innerHTML =
-            '<pre style="color:#f87171;padding:40px;white-space:pre-wrap;">Error loading app:\n' + err.message + '\n\n' + (err.stack || '') + '</pre>';
+            '<pre style="color:#dc2626;padding:40px;white-space:pre-wrap;">Error loading app:\n' + err.message + '\n\n' + (err.stack || '') + '</pre>';
           console.error(err);
         });
     </script>
