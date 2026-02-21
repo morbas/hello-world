@@ -189,43 +189,6 @@ function generatePlan(data) {
   return { finalSize, sizeWarning, maxAllowed, totalCost, budgetDiff, adjustedWeeks, needsDA, approvalPath, alternatives, schedule, permits, budgetBreakdown, council, material, finish, weeklyRent, annualRent, roi };
 }
 
-const css = `
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-  .fade-in { animation: fadeIn 0.4s ease-out; }
-  .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 24px; }
-  .input-field { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 14px; color: #e8ede8; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
-  .input-field:focus { border-color: #22c55e; }
-  .input-field option { background: #1a2a3a; color: #e8ede8; }
-  .error-text { font-size: 12px; color: #f87171; margin-top: 6px; }
-  .address-search-wrap { display: flex; gap: 8px; }
-  .search-btn { background: linear-gradient(135deg, #22c55e, #059669); border: none; border-radius: 10px; padding: 0 16px; color: #fff; cursor: pointer; display: flex; align-items: center; font-size: 16px; }
-  .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .map-container { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
-  .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-  .badge-green { background: rgba(34,197,94,0.15); color: #4ade80; }
-  .badge-amber { background: rgba(245,158,11,0.15); color: #fbbf24; }
-  @keyframes pulseGreen { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); } 50% { box-shadow: 0 0 0 6px rgba(34,197,94,0); } }
-  .pulse-green { animation: pulseGreen 2s infinite; border-radius: 6px; }
-  .finish-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 20px; color: #e8ede8; cursor: pointer; font-family: inherit; text-align: left; transition: all 0.2s; }
-  .finish-btn:hover { border-color: rgba(34,197,94,0.3); }
-  .finish-btn.selected { border-color: #22c55e; background: rgba(34,197,94,0.08); }
-  .material-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; cursor: pointer; transition: all 0.2s; }
-  .material-card:hover { border-color: rgba(34,197,94,0.3); }
-  .material-card.selected { border-color: #22c55e; background: rgba(34,197,94,0.06); }
-  .btn-primary { background: linear-gradient(135deg, #22c55e, #059669); border: none; border-radius: 12px; padding: 14px 28px; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 4px; transition: transform 0.2s, box-shadow 0.2s; }
-  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(34,197,94,0.3); }
-  .btn-secondary { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 28px; color: #e8ede8; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 4px; transition: all 0.2s; }
-  .btn-secondary:hover { border-color: rgba(255,255,255,0.2); }
-  .tab-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 18px; color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; white-space: nowrap; }
-  .tab-btn:hover { color: #e8ede8; border-color: rgba(255,255,255,0.15); }
-  .tab-btn.active { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.3); color: #4ade80; }
-  .card-hover { transition: all 0.2s; }
-  .card-hover:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); }
-  @media (max-width: 640px) {
-    .grid-2 { grid-template-columns: 1fr !important; }
-  }
-`;
-
 const STEPS = ["Location & Land", "Design & Materials", "Budget & Purpose", "Your Plan"];
 
 const css = `
