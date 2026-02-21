@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QLD Granny Flat & Tiny House Builder</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .tab-active {
+            border-bottom: 3px solid #667eea;
+            color: #667eea;
+        }
+        .material-card {
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        .material-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+        .material-card.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        }
+        .progress-step {
+            position: relative;
+        }
+        .progress-step::after {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            width: 100%;
+            height: 2px;
+            background: #e5e7eb;
+            z-index: -1;
+        }
+        .progress-step:last-child::after {
+            display: none;
+        }
+        .step-completed {
+            background: #10b981;
+            color: white;
+        }
+        .budget-bar {
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            background: #e5e7eb;
+        }
+        .budget-segment {
+            height: 100%;
+            display: inline-block;
+            position: relative;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-slide {
+            animation: slideIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Data
+        const appData = {
+            materials: {
+                timber: {
+                    name: "Madera (Timber Frame)",
+                    costPerSqm: 2000,
+                    buildWeeks: 10,
+                    thermal: "Media (R-value: 2.5-3.0)",
+                    termiteRisk: "Alto",
+                    score: 7,
+                    icon: "🌲",
+                    color: "bg-amber-100 text-amber-800",
+                    pros: ["Más económico", "Construcción rápida", "Tradicional en QLD"],
+                    cons: ["Vulnerable a termitas", "Requiere mantenimiento"]
+                },
+                steel: {
+                    name: "Acero (Steel Frame)",
+                    costPerSqm: 2250,
+                    buildWeeks: 12,
+                    thermal: "Media-Alta (R-value: 3.0-3.5)",
+                    termiteRisk: "Nulo",
+                    score: 9,
+                    recommended: true,
+                    icon: "🔩",
+                    color: "bg-blue-100 text-blue-800",
+                    pros: ["Resistente a termitas", "Durabilidad superior", "Ideal para QLD"],
+                    cons: ["Más costoso", "Conduce calor"]
+                },
+                brick: {
+                    name: "Ladrillo (Brick Veneer)",
+                    costPerSqm: 2700,
+                    buildWeeks: 16,
+                    thermal: "Alta (R-value: 3.5-4.0)",
+                    termiteRisk: "Bajo",
+                    score: 8,
+                    icon: "🧱",
+                    color: "bg-red-100 text-red-800",
+                    pros: ["Mejor aislación", "Bajo mantenimiento", "Mayor valor"],
+                    cons: ["Más costoso", "Construcción lenta"]
+                },
+                concrete: {
+                    name: "Hormigón (Concrete Block)",
+                    costPerSqm: 2500,
+                    buildWeeks: 14,
+                    thermal: "Alta (R-value: 3.0-4.0)",
+                    termiteRisk: "Nulo",
+                    score: 8,
+                    icon: "🏗️",
+                    color: "bg-gray-100 text-gray-800",
+                    pros: ["Excelente masa térmica", "Resistente a clima extremo"],
+                    cons: ["Pesado", "Instalación especializada"]
+                }
+            },
+            budgetBreakdown: {
+                sitePrep: { name: "Preparación del terreno", min: 2300, max: 8800, color: "bg-yellow-500" },
+                foundation: { name: "Cimentación y estructura", min: 40000, max: 58000, color: "bg-orange-500" },
+                cladding: { name: "Revestimiento exterior", min: 8000, max: 15000, color: "bg-red-500" },
+                windowsDoors: { name: "Ventanas y puertas", min: 6000, max: 11000, color: "bg-pink-500" },
+                internal: { name: "Terminaciones internas", min: 27000, max: 48000, color: "bg-purple-500" },
+                services: { name: "Conexiones de servicios", min: 23000, max: 42000, color: "bg-blue-500" },
+                permits: { name: "Permisos y certificaciones", min: 6600, max: 16100, color: "bg-green-500" },
+                contingency: { name: "Contingencia (10%)", min: 10000, max: 15000, color: "bg-gray-500" }
+            },
+            permitSteps: [
+                { num: 1, name: "Soil Test", time: "1-2 sem", cost: "$600-$1000", icon: "🔬" },
+                { num: 2, name: "Verificar Planning Scheme", time: "3-5 días", cost: "$0-$1500", icon: "📋" },
+                { num: 3, name: "Diseño Arquitectónico", time: "2-4 sem", cost: "$3k-$8k", icon: "📐" },
+                { num: 4, name: "Ingeniería Estructural", time: "1-2 sem", cost: "$1.5k-$3k", icon: "🏗️" },
+                { num: 5, name: "Development Approval (si aplica)", time: "6-12 sem", cost: "$2k-$5k", icon: "⚠️" },
+                { num: 6, name: "Contratar Private Certifier", time: "Continuo", cost: "$2.5k-$4k", icon: "✅" },
+                { num: 7, name: "Form 15 (Building Approval)", time: "2-4 sem", cost: "$300-$500", icon: "📄" },
+                { num: 8, name: "Building Approval Certificate", time: "Al aprobar", cost: "Incluido", icon: "🎫" },
+                { num: 9, name: "Contratar Constructor QBCC", time: "1-2 sem", cost: "Variable", icon: "👷" },
+                { num: 10, name: "Form 16 (Notificar Inicio)", time: "2 días antes", cost: "$0-$100", icon: "📢" },
+                { num: 11, name: "Inspecciones Durante Obra", time: "Según obra", cost: "Incluido", icon: "🔍" },
+                { num: 12, name: "Compliance Certificates", time: "Al finalizar", cost: "Incluido", icon: "📜" },
+                { num: 13, name: "Final Inspection", time: "1-2 días", cost: "Incluido", icon: "👀" },
+                { num: 14, name: "Certificate of Occupancy", time: "Tras aprobar", cost: "Incluido", icon: "🏠" },
+                { num: 15, name: "Actualizar Valuación", time: "1-2 meses", cost: "$0", icon: "💰" }
+            ],
+            builders: [
+                { 
+                    name: "Granny Flat Solutions QLD", 
+                    location: "Brisbane & Gold Coast",
+                    rating: 4.5, 
+                    priceRange: "$130k-$200k",
+                    specialty: "Granny flats llave en mano",
+                    time: "12-16 semanas",
+                    icon: "🏡"
+                },
+                { 
+                    name: "Aussie Tiny Houses", 
+                    location: "Gold Coast & Byron Bay",
+                    rating: 4.7, 
+                    priceRange: "$85k-$150k",
+                    specialty: "Tiny houses móviles y estacionarias",
+                    time: "8-12 semanas",
+                    icon: "🏘️"
+                },
+                { 
+                    name: "Back Yard Pods", 
+                    location: "Brisbane, GC, Sunshine Coast",
+                    rating: 4.6, 
+                    priceRange: "$120k-$180k",
+                    specialty: "Pods modulares",
+                    time: "10-14 semanas",
+                    icon: "🏗️"
+                }
+            ],
+            suppliers: [
+                {
+                    name: "Bunnings Warehouse",
+                    type: "General",
+                    tier: "Económico-Medio",
+                    icon: "🔨",
+                    products: "Materiales generales, herramientas, ferretería"
+                },
+                {
+                    name: "Big River Group",
+                    type: "Especialista en Madera",
+                    tier: "Medio-Premium",
+                    icon: "🌲",
+                    products: "Timber framing, engineered wood, trusses"
+                },
+                {
+                    name: "Stratco",
+                    type: "Steel Frame & Metal",
+                    tier: "Medio",
+                    icon: "🔩",
+                    products: "Steel frames, Colorbond roofing, gutters",
+                    recommended: true
+                }
+            ]
+        };
+
+        // Main App Component
+        function App() {
+            const [activeTab, setActiveTab] = useState('calculator');
+            const [sqm, setSqm] = useState(60);
+            const [selectedMaterial, setSelectedMaterial] = useState('steel');
+            const [budgetTier, setBudgetTier] = useState('mid');
+
+            const calculateBudget = () => {
+                const base = sqm * appData.materials[selectedMaterial].costPerSqm;
+                const multiplier = budgetTier === 'basic' ? 0.9 : budgetTier === 'premium' ? 1.2 : 1;
+                return Math.round(base * multiplier);
+            };
+
+            const tabs = [
+                { id: 'calculator', name: 'Calculadora', icon: '🧮' },
+                { id: 'materials', name: 'Materiales', icon: '🏗️' },
+                { id: 'permits', name: 'Permisos', icon: '📋' },
+                { id: 'providers', name: 'Proveedores', icon: '🏢' },
+                { id: 'regulations', name: 'Regulaciones', icon: '⚖️' }
+            ];
+
+            return (
+                <div className="min-h-screen">
+                    {/* Header */}
+                    <header className="gradient-bg text-white shadow-lg">
+                        <div className="container mx-auto px-4 py-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h1 className="text-3xl font-bold flex items-center gap-3">
+                                        🏠 QLD Granny Flat Builder
+                                    </h1>
+                                    <p className="text-purple-200 mt-1">Planificador completo para Queensland, Australia</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-4xl font-bold">${calculateBudget().toLocaleString()}</div>
+                                    <div className="text-purple-200 text-sm">Presupuesto estimado</div>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Navigation Tabs */}
+                    <nav className="bg-white shadow-md sticky top-0 z-40">
+                        <div className="container mx-auto px-4">
+                            <div className="flex gap-1 overflow-x-auto">
+                                {tabs.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`px-6 py-4 font-semibold whitespace-nowrap transition-all ${
+                                            activeTab === tab.id 
+                                                ? 'tab-active' 
+                                                : 'text-gray-600 hover:text-gray-900'
+                                        }`}
+                                    >
+                                        <span className="mr-2">{tab.icon}</span>
+                                        {tab.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Content */}
+                    <main className="container mx-auto px-4 py-8">
+                        {activeTab === 'calculator' && (
+                            <CalculatorTab 
+                                sqm={sqm}
+                                setSqm={setSqm}
+                                selectedMaterial={selectedMaterial}
+                                setSelectedMaterial={setSelectedMaterial}
+                                budgetTier={budgetTier}
+                                setBudgetTier={setBudgetTier}
+                                calculateBudget={calculateBudget}
+                            />
+                        )}
+                        {activeTab === 'materials' && <MaterialsTab />}
+                        {activeTab === 'permits' && <PermitsTab />}
+                        {activeTab === 'providers' && <ProvidersTab />}
+                        {activeTab === 'regulations' && <RegulationsTab />}
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-gray-800 text-white py-8 mt-12">
+                        <div className="container mx-auto px-4 text-center">
+                            <p className="text-gray-400">
+                                ⚠️ Información actualizada a Febrero 2026 • Queensland, Australia
+                            </p>
+                            <p className="text-gray-500 text-sm mt-2">
+                                Consulta siempre con un Private Certifier y verifica las regulaciones de tu consejo local
+                            </p>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        // Calculator Tab Component
+        function CalculatorTab({ sqm, setSqm, selectedMaterial, setSelectedMaterial, budgetTier, setBudgetTier, calculateBudget }) {
+            const material = appData.materials[selectedMaterial];
+            const totalBudget = calculateBudget();
+
+            return (
+                <div className="animate-slide space-y-6">
+                    {/* Alert Bar */}
+                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                        <div className="flex items-start">
+                            <div className="text-2xl mr-3">⚠️</div>
+                            <div>
+                                <h3 className="font-bold text-yellow-800">Importante para Queensland</h3>
+                                <p className="text-yellow-700 text-sm mt-1">
+                                    Las termitas son un problema CRÍTICO en QLD. Se recomienda fuertemente usar Steel Frame.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Calculator Controls */}
+                    <div className="grid md:grid-cols-2 gap-6">
+                        {/* Size Selector */}
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                                📏 Tamaño de la Construcción
+                            </h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Metros cuadrados: <span className="text-2xl font-bold text-purple-600">{sqm}m²</span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        min="40"
+                                        max="80"
+                                        value={sqm}
+                                        onChange={(e) => setSqm(parseInt(e.target.value))}
+                                        className="w-full h-3 bg-purple-200 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>40m²</span>
+                                        <span>60m² (típico)</span>
+                                        <span>80m² (máximo)</span>
+                                    </div>
+                                </div>
+                                {sqm > 60 && (
+                                    <div className="bg-orange-50 p-3 rounded text-sm text-orange-800">
+                                        ⚠️ Más de 60m² puede requerir Development Approval
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Budget Tier */}
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                                💰 Nivel de Terminaciones
+                            </h3>
+                            <div className="space-y-3">
+                                {[
+                                    { id: 'basic', name: 'Básico', desc: 'Estándar económico' },
+                                    { id: 'mid', name: 'Medio', desc: 'Calidad media' },
+                                    { id: 'premium', name: 'Premium', desc: 'Alto estándar' }
+                                ].map(tier => (
+                                    <button
+                                        key={tier.id}
+                                        onClick={() => setBudgetTier(tier.id)}
+                                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                                            budgetTier === tier.id
+                                                ? 'border-purple-600 bg-purple-50'
+                                                : 'border-gray-200 hover:border-purple-300'
+                                        }`}
+                                    >
+                                        <div className="font-bold">{tier.name}</div>
+                                        <div className="text-sm text-gray-600">{tier.desc}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Material Selection */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-4">🏗️ Selecciona el Material</h3>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {Object.entries(appData.materials).map(([key, mat]) => (
+                                <div
+                                    key={key}
+                                    onClick={() => setSelectedMaterial(key)}
+                                    className={`material-card p-4 rounded-lg cursor-pointer ${
+                                        selectedMaterial === key ? 'selected' : ''
+                                    }`}
+                                >
+                                    <div className="text-4xl mb-2">{mat.icon}</div>
+                                    <h4 className="font-bold mb-2">{mat.name.split('(')[0]}</h4>
+                                    <div className="space-y-1 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">Costo/m²:</span>
+                                            <span className="font-semibold">${mat.costPerSqm}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">Tiempo:</span>
+                                            <span className="font-semibold">{mat.buildWeeks} sem</span>
+                                        </div>
+                                        <div className={`inline-block px-2 py-1 rounded text-xs font-semibold ${mat.color}`}>
+                                            Termitas: {mat.termiteRisk}
+                                        </div>
+                                    </div>
+                                    {mat.recommended && (
+                                        <div className="mt-2 bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
+                                            ⭐ RECOMENDADO QLD
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Budget Summary */}
+                    <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg shadow-xl p-8 text-white">
+                        <div className="grid md:grid-cols-3 gap-6">
+                            <div>
+                                <div className="text-purple-200 text-sm">PRESUPUESTO TOTAL</div>
+                                <div className="text-5xl font-bold mt-2">${totalBudget.toLocaleString()}</div>
+                                <div className="text-purple-200 text-sm mt-1">AUD (llave en mano)</div>
+                            </div>
+                            <div>
+                                <div className="text-purple-200 text-sm">TIEMPO DE CONSTRUCCIÓN</div>
+                                <div className="text-4xl font-bold mt-2">{material.buildWeeks} semanas</div>
+                                <div className="text-purple-200 text-sm mt-1">Aproximado</div>
+                            </div>
+                            <div>
+                                <div className="text-purple-200 text-sm">EFICIENCIA TÉRMICA</div>
+                                <div className="text-2xl font-bold mt-2">{material.thermal.split('(')[1]?.replace(')', '')}</div>
+                                <div className="text-purple-200 text-sm mt-1">Rating de aislamiento</div>
+                            </div>
+                        </div>
+                        
+                        <div className="mt-6 pt-6 border-t border-purple-400">
+                            <h4 className="font-bold mb-3">Desglose del Presupuesto</h4>
+                            <div className="space-y-2">
+                                {Object.entries(appData.budgetBreakdown).map(([key, item]) => {
+                                    const percentage = ((item.min + item.max) / 2) / totalBudget * 100;
+                                    return (
+                                        <div key={key} className="flex items-center gap-3">
+                                            <div className={`w-4 h-4 rounded ${item.color}`}></div>
+                                            <div className="flex-1 text-sm">{item.name}</div>
+                                            <div className="text-sm font-semibold">{percentage.toFixed(0)}%</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Materials Tab Component
+        function MaterialsTab() {
+            return (
+                <div className="animate-slide">
+                    <h2 className="text-3xl font-bold mb-6">Comparativa Detallada de Materiales</h2>
+                    
+                    <div className="grid lg:grid-cols-2 gap-6">
+                        {Object.entries(appData.materials).map(([key, mat]) => (
+                            <div key={key} className="bg-white rounded-lg shadow-lg p-6 card-hover">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div>
+                                        <div className="text-5xl mb-2">{mat.icon}</div>
+                                        <h3 className="text-2xl font-bold">{mat.name}</h3>
+                                    </div>
+                                    {mat.recommended && (
+                                        <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
+                                            ⭐ RECOMENDADO
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div className="bg-gray-50 p-3 rounded">
+                                        <div className="text-xs text-gray-600">Costo por m²</div>
+                                        <div className="text-xl font-bold text-purple-600">${mat.costPerSqm}</div>
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded">
+                                        <div className="text-xs text-gray-600">Tiempo construcción</div>
+                                        <div className="text-xl font-bold text-blue-600">{mat.buildWeeks} semanas</div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 mb-4">
+                                    <div>
+                                        <div className="text-sm font-semibold text-gray-700">Eficiencia Térmica</div>
+                                        <div className="text-sm text-gray-600">{mat.thermal}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-semibold text-gray-700">Riesgo de Termitas</div>
+                                        <span className={`inline-block px-3 py-1 rounded text-sm font-semibold ${mat.color}`}>
+                                            {mat.termiteRisk}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <div className="text-sm font-semibold text-green-700 mb-2">✅ Ventajas</div>
+                                        <ul className="text-sm space-y-1">
+                                            {mat.pros.map((pro, i) => (
+                                                <li key={i} className="text-gray-600">• {pro}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-semibold text-red-700 mb-2">❌ Desventajas</div>
+                                        <ul className="text-sm space-y-1">
+                                            {mat.cons.map((con, i) => (
+                                                <li key={i} className="text-gray-600">• {con}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t">
+                                    <div className="text-sm">
+                                        <span className="font-semibold">Puntuación para QLD:</span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <div className="flex-1 bg-gray-200 rounded-full h-3">
+                                                <div 
+                                                    className="bg-gradient-to-r from-purple-600 to-blue-600 h-3 rounded-full"
+                                                    style={{ width: `${(mat.score / 10) * 100}%` }}
+                                                ></div>
+                                            </div>
+                                            <span className="font-bold text-purple-600">{mat.score}/10</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Climate Warning */}
+                    <div className="mt-8 bg-orange-50 border-l-4 border-orange-500 p-6 rounded">
+                        <h3 className="font-bold text-orange-900 mb-2 flex items-center gap-2">
+                            🌡️ Consideraciones Climáticas de Queensland
+                        </h3>
+                        <div className="grid md:grid-cols-3 gap-4 text-sm text-orange-800">
+                            <div>
+                                <div className="font-semibold mb-1">🐜 Termitas</div>
+                                <p>QLD tiene la mayor incidencia de termitas en Australia. Steel Frame es la mejor protección.</p>
+                            </div>
+                            <div>
+                                <div className="font-semibold mb-1">☀️ Calor & Humedad</div>
+                                <p>Veranos de 28-35°C. Aire acondicionado es esencial, no opcional.</p>
+                            </div>
+                            <div>
+                                <div className="font-semibold mb-1">🌀 Ciclones</div>
+                                <p>Zonas costeras requieren wind rating N2-N4 y roof tie-downs certificados.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Permits Tab Component
+        function PermitsTab() {
+            return (
+                <div className="animate-slide">
+                    <h2 className="text-3xl font-bold mb-6">Proceso de Permisos - Paso a Paso</h2>
+                    
+                    {/* Timeline Summary */}
+                    <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-6 mb-8">
+                        <div className="grid md:grid-cols-3 gap-4 text-center">
+                            <div>
+                                <div className="text-4xl font-bold">15</div>
+                                <div className="text-blue-200">Pasos Totales</div>
+                            </div>
+                            <div>
+                                <div className="text-4xl font-bold">12-16</div>
+                                <div className="text-blue-200">Semanas de Proceso</div>
+                            </div>
+                            <div>
+                                <div className="text-4xl font-bold">$6.6k-$16k</div>
+                                <div className="text-blue-200">Costos de Permisos</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Critical Alert */}
+                    <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded mb-6">
+                        <div className="flex items-start">
+                            <div className="text-2xl mr-3">🚨</div>
+                            <div>
+                                <h3 className="font-bold text-red-800">CRÍTICO: Private Certifier Obligatorio</h3>
+                                <p className="text-red-700 text-sm mt-1">
+                                    En Queensland, NO puedes construir sin un Private Certifier designado. Contrátalo ANTES de empezar el diseño.
+                                    Construir sin Building Approval puede resultar en multas de hasta $50,000 AUD.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Steps */}
+                    <div className="space-y-4">
+                        {appData.permitSteps.map((step, index) => (
+                            <div key={step.num} className="bg-white rounded-lg shadow-lg p-6 card-hover">
+                                <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0">
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 text-white flex items-center justify-center font-bold text-lg">
+                                            {step.num}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-start justify-between mb-2">
+                                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                                <span>{step.icon}</span>
+                                                {step.name}
+                                            </h3>
+                                            <div className="text-right">
+                                                <div className="text-sm font-semibold text-purple-600">{step.cost}</div>
+                                                <div className="text-xs text-gray-500">{step.time}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        {step.num === 5 && (
+                                            <div className="bg-yellow-50 border border-yellow-300 rounded p-3 text-sm text-yellow-800">
+                                                ⚠️ Este paso solo aplica si tu proyecto requiere Development Approval. 
+                                                Si cumple con "complying development", puedes saltar al paso 6.
+                                            </div>
+                                        )}
+                                        
+                                        {step.num === 6 && (
+                                            <div className="bg-green-50 border border-green-300 rounded p-3 text-sm text-green-800">
+                                                ✅ El Private Certifier te acompañará durante TODO el proceso: aprueba planos, 
+                                                realiza inspecciones y emite el certificado final.
+                                            </div>
+                                        )}
+
+                                        {step.num === 11 && (
+                                            <div className="mt-2 space-y-1 text-sm text-gray-600">
+                                                <div className="font-semibold">Inspecciones requeridas:</div>
+                                                <ul className="list-disc list-inside">
+                                                    <li>Footings inspection (cimentación)</li>
+                                                    <li>Frame inspection (estructura)</li>
+                                                    <li>Wet area inspection (baños/cocina)</li>
+                                                    <li>Final inspection (pre-ocupación)</li>
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Documents Checklist */}
+                    <div className="mt-8 bg-blue-50 rounded-lg p-6">
+                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            📄 Documentos Requeridos
+                        </h3>
+                        <div className="grid md:grid-cols-2 gap-3">
+                            {[
+                                "Soil test report",
+                                "Site plan (levantamiento topográfico)",
+                                "Architectural plans (plantas, elevaciones)",
+                                "Structural engineering plans",
+                                "Energy efficiency report (6-star mínimo)",
+                                "Plumbing & drainage plans",
+                                "Electrical plans",
+                                "Title deed del terreno",
+                                "Comprobante de tasas del consejo"
+                            ].map((doc, i) => (
+                                <div key={i} className="flex items-center gap-2 text-sm">
+                                    <span className="text-blue-600">✓</span>
+                                    <span>{doc}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Providers Tab Component
+        function ProvidersTab() {
+            return (
+                <div className="animate-slide">
+                    <h2 className="text-3xl font-bold mb-6">Constructoras y Proveedores Recomendados</h2>
+
+                    {/* Builders */}
+                    <div className="mb-8">
+                        <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                            🏗️ Constructoras Especializadas
+                        </h3>
+                        <div className="grid lg:grid-cols-3 gap-6">
+                            {appData.builders.map((builder, index) => (
+                                <div key={index} className="bg-white rounded-lg shadow-lg p-6 card-hover">
+                                    <div className="text-5xl mb-3">{builder.icon}</div>
+                                    <h4 className="text-xl font-bold mb-2">{builder.name}</h4>
+                                    <div className="text-sm text-gray-600 mb-3">{builder.location}</div>
+                                    
+                                    <div className="space-y-2 mb-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-yellow-500">⭐</span>
+                                            <span className="font-semibold">{builder.rating}/5.0</span>
+                                        </div>
+                                        <div className="text-sm">
+                                            <span className="font-semibold">Rango:</span> {builder.priceRange}
+                                        </div>
+                                        <div className="text-sm">
+                                            <span className="font-semibold">Tiempo:</span> {builder.time}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-purple-50 rounded p-3 text-sm">
+                                        <div className="font-semibold text-purple-800 mb-1">Especialidad:</div>
+                                        <div className="text-purple-700">{builder.specialty}</div>
+                                    </div>
+
+                                    <button className="mt-4 w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2 rounded font-semibold hover:shadow-lg transition-all">
+                                        Ver Más Info
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="mt-4 bg-blue-50 border border-blue-200 rounded p-4 text-sm text-blue-800">
+                            <strong>💡 Tip:</strong> Siempre verifica la licencia QBCC del constructor en 
+                            <a href="https://www.qbcc.qld.gov.au" className="underline ml-1">qbcc.qld.gov.au</a> antes de contratar.
+                        </div>
+                    </div>
+
+                    {/* Suppliers */}
+                    <div>
+                        <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                            🏪 Proveedores de Materiales
+                        </h3>
+                        <div className="grid md:grid-cols-3 gap-6">
+                            {appData.suppliers.map((supplier, index) => (
+                                <div key={index} className={`bg-white rounded-lg shadow-lg p-6 card-hover ${
+                                    supplier.recommended ? 'border-2 border-green-500' : ''
+                                }`}>
+                                    {supplier.recommended && (
+                                        <div className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded inline-block mb-3">
+                                            ⭐ RECOMENDADO PARA QLD
+                                        </div>
+                                    )}
+                                    <div className="text-4xl mb-3">{supplier.icon}</div>
+                                    <h4 className="text-xl font-bold mb-2">{supplier.name}</h4>
+                                    <div className="text-sm text-gray-600 mb-2">{supplier.type}</div>
+                                    <div className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mb-3">
+                                        {supplier.tier}
+                                    </div>
+                                    <p className="text-sm text-gray-600">{supplier.products}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-6 grid md:grid-cols-3 gap-4">
+                            <div className="bg-white rounded-lg shadow p-4">
+                                <div className="text-2xl mb-2">🔨</div>
+                                <div className="font-bold">Reece Plumbing</div>
+                                <div className="text-sm text-gray-600">Plomería y baños completos</div>
+                            </div>
+                            <div className="bg-white rounded-lg shadow p-4">
+                                <div className="text-2xl mb-2">🏠</div>
+                                <div className="font-bold">CSR Bradford</div>
+                                <div className="text-sm text-gray-600">Aislamiento térmico especializado</div>
+                            </div>
+                            <div className="bg-white rounded-lg shadow p-4">
+                                <div className="text-2xl mb-2">🎨</div>
+                                <div className="font-bold">James Hardie</div>
+                                <div className="text-sm text-gray-600">Cladding resistente a clima QLD</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Regulations Tab Component
+        function RegulationsTab() {
+            return (
+                <div className="animate-slide">
+                    <h2 className="text-3xl font-bold mb-6">Regulaciones de Queensland</h2>
+
+                    {/* Main Regulations */}
+                    <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                        <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                            ⚖️ Requisitos para Secondary Dwelling
+                        </h3>
+                        
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <h4 className="font-bold text-lg mb-3">📏 Dimensiones y Área</h4>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                                        <span>Área máxima típica:</span>
+                                        <span className="font-bold">60m²</span>
+                                    </div>
+                                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                                        <span>Área máxima en algunas zonas:</span>
+                                        <span className="font-bold">80m²</span>
+                                    </div>
+                                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                                        <span>Altura máxima:</span>
+                                        <span className="font-bold">8.5m</span>
+                                    </div>
+                                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                                        <span>Cobertura del sitio:</span>
+                                        <span className="font-bold">Máx. 50%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="font-bold text-lg mb-3">📐 Retiros (Setbacks)</h4>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                                        <span>Retiro frontal:</span>
+                                        <span className="font-bold">6m típicamente</span>
+                                    </div>
+                                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                                        <span>Retiro lateral:</span>
+                                        <span className="font-bold">1.5m mínimo</span>
+                                    </div>
+                                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                                        <span>Retiro trasero:</span>
+                                        <span className="font-bold">6m típicamente</span>
+                                    </div>
+                                    <div className="flex justify-between p-2 bg-gray-50 rounded">
+                                        <span>Estacionamiento adicional:</span>
+                                        <span className="font-bold">1 espacio</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 p-4 bg-blue-50 rounded">
+                            <h4 className="font-bold mb-2">📋 Tipos de Aprobación</h4>
+                            <div className="space-y-3 text-sm">
+                                <div>
+                                    <div className="font-semibold text-blue-800">✅ Solo Building Approval (más común)</div>
+                                    <ul className="list-disc list-inside text-gray-700 ml-4 mt-1">
+                                        <li>Cumple con Planning Scheme local</li>
+                                        <li>No excede 60m² de área construida</li>
+                                        <li>Mantiene retiros mínimos</li>
+                                        <li>Altura máxima de 8.5m</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <div className="font-semibold text-orange-800">⚠️ Requiere Development Approval + Building Approval</div>
+                                    <ul className="list-disc list-inside text-gray-700 ml-4 mt-1">
+                                        <li>Excede 60m² de área</li>
+                                        <li>No cumple con retiros mínimos</li>
+                                        <li>Zona con restricciones especiales</li>
+                                        <li>Áreas con overlay (bushfire, flood, heritage)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Energy Efficiency */}
+                    <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                        <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                            ⚡ Eficiencia Energética
+                        </h3>
+                        <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
+                            <div className="font-bold text-green-800 mb-1">Requerimiento Mínimo: 6 Estrellas</div>
+                            <p className="text-sm text-green-700">
+                                Todas las nuevas construcciones en QLD deben cumplir con un rating de eficiencia energética de 6 estrellas mínimo.
+                            </p>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <h4 className="font-semibold mb-2">✅ Características Obligatorias</h4>
+                                <ul className="text-sm space-y-1 text-gray-700">
+                                    <li>• Aislamiento de techo (R3.5 mínimo)</li>
+                                    <li>• Aislamiento de paredes</li>
+                                    <li>• Sistema de agua caliente eficiente</li>
+                                    <li>• Iluminación LED</li>
+                                    <li>• Ventanas con vidrio bajo emisivo</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 className="font-semibold mb-2">⭐ Mejoras Recomendadas</h4>
+                                <ul className="text-sm space-y-1 text-gray-700">
+                                    <li>• Paneles solares (feed-in tariff disponible)</li>
+                                    <li>• Agua caliente solar</li>
+                                    <li>• Doble acristalamiento en ventanas oeste</li>
+                                    <li>• Ventilación cruzada en diseño</li>
+                                    <li>• Eaves amplios para sombra</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* QLD Specific Challenges */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                            🌏 Desafíos Específicos de Queensland
+                        </h3>
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="border-l-4 border-red-500 pl-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-2xl">🐜</span>
+                                    <h4 className="font-bold text-lg">Termitas - CRÍTICO</h4>
+                                </div>
+                                <p className="text-sm text-gray-700 mb-2">
+                                    QLD tiene la mayor incidencia de termitas en Australia. Daño anual: $100+ millones.
+                                </p>
+                                <div className="bg-red-50 p-3 rounded text-sm">
+                                    <div className="font-semibold mb-1">Soluciones:</div>
+                                    <ul className="list-disc list-inside text-gray-700">
+                                        <li>Steel frame (100% inmune)</li>
+                                        <li>Madera tratada + barrera química</li>
+                                        <li>Inspecciones anuales obligatorias</li>
+                                    </ul>
+                                    <div className="mt-2 font-semibold">Costo prevención: $2,000-$5,000</div>
+                                </div>
+                            </div>
+
+                            <div className="border-l-4 border-orange-500 pl-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-2xl">☀️</span>
+                                    <h4 className="font-bold text-lg">Calor y Humedad</h4>
+                                </div>
+                                <p className="text-sm text-gray-700 mb-2">
+                                    Veranos de 28-35°C con humedad del 60-80%. Brisbane promedia 261 días soleados/año.
+                                </p>
+                                <div className="bg-orange-50 p-3 rounded text-sm">
+                                    <div className="font-semibold mb-1">Soluciones:</div>
+                                    <ul className="list-disc list-inside text-gray-700">
+                                        <li>Aire acondicionado (NO opcional)</li>
+                                        <li>Aislamiento R3.5+ en techo</li>
+                                        <li>Orientación norte para ventilación</li>
+                                        <li>Eaves amplios para sombra</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="border-l-4 border-blue-500 pl-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-2xl">🌀</span>
+                                    <h4 className="font-bold text-lg">Ciclones y Tormentas</h4>
+                                </div>
+                                <p className="text-sm text-gray-700 mb-2">
+                                    Costa norte especialmente vulnerable. Vientos de hasta 200 km/h.
+                                </p>
+                                <div className="bg-blue-50 p-3 rounded text-sm">
+                                    <div className="font-semibold mb-1">Soluciones:</div>
+                                    <ul className="list-disc list-inside text-gray-700">
+                                        <li>Roof tie-downs certificados</li>
+                                        <li>Colorbond roofing (no tejas)</li>
+                                        <li>Wind rating N2-N4 según zona</li>
+                                        <li>Ventanas impact-resistant</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="border-l-4 border-cyan-500 pl-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-2xl">💧</span>
+                                    <h4 className="font-bold text-lg">Inundaciones</h4>
+                                </div>
+                                <p className="text-sm text-gray-700 mb-2">
+                                    Lluvias intensas en temporada húmeda (Nov-Abr). Brisbane sufrió grandes inundaciones en 2011, 2022.
+                                </p>
+                                <div className="bg-cyan-50 p-3 rounded text-sm">
+                                    <div className="font-semibold mb-1">Soluciones:</div>
+                                    <ul className="list-disc list-inside text-gray-700">
+                                        <li>Verificar flood maps del consejo</li>
+                                        <li>Floor level elevado si flood-prone</li>
+                                        <li>Stormwater drainage adecuado</li>
+                                        <li>Considerar flood insurance</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Important Links */}
+                    <div className="mt-6 bg-purple-50 rounded-lg p-6">
+                        <h3 className="text-xl font-bold mb-3">🔗 Enlaces Importantes</h3>
+                        <div className="grid md:grid-cols-2 gap-3 text-sm">
+                            <a href="https://www.qbcc.qld.gov.au" className="flex items-center gap-2 p-3 bg-white rounded hover:shadow">
+                                <span>🏛️</span>
+                                <span>QBCC - Verificar Licencias de Constructores</span>
+                            </a>
+                            <a href="https://www.brisbane.qld.gov.au" className="flex items-center gap-2 p-3 bg-white rounded hover:shadow">
+                                <span>🏢</span>
+                                <span>Brisbane City Council - Planning Schemes</span>
+                            </a>
+                            <a href="https://www.hpw.qld.gov.au" className="flex items-center gap-2 p-3 bg-white rounded hover:shadow">
+                                <span>📚</span>
+                                <span>QLD Building Codes & Standards</span>
+                            </a>
+                            <a href="https://www.abcb.gov.au" className="flex items-center gap-2 p-3 bg-white rounded hover:shadow">
+                                <span>📖</span>
+                                <span>BCA - Building Code of Australia</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the app
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
