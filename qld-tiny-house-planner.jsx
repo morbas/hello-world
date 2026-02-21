@@ -165,56 +165,43 @@ function TinyHousePlanner() {
   const [polyPoints, setPolyPoints] = useState([]);
   const [measuredArea, setMeasuredArea] = useState(null);
   const mapDivRef = useRef(null);
-  const gMapRef = useRef(null);
-  const gPinRef = useRef(null);
-  const gPolyRef = useRef(null);
-  const gOverlays = useRef([]);
+  const leafletMap = useRef(null);
+  const layerGroup = useRef(null);
   const polyPtsRef = useRef([]);
 
   const clearOverlays = () => {
-    try {
-      if (gPolyRef.current) { gPolyRef.current.setMap(null); gPolyRef.current = null; }
-      gOverlays.current.forEach(function(m) { try { m.setMap(null); } catch(e){} });
-      gOverlays.current = [];
-    } catch(e){}
+    if (layerGroup.current) layerGroup.current.clearLayers();
   };
 
   const redrawPolygon = (points) => {
-    if (!gMapRef.current || !window.google) return;
+    if (!leafletMap.current || !window.L) return;
     clearOverlays();
     if (!points.length) return;
-    try {
-      var gm = google.maps;
-      points.forEach(function(pt, i) {
-        var m = new gm.Marker({ map: gMapRef.current, position: pt, zIndex: 10,
-          label: { text: String(i+1), color: "#000", fontWeight: "bold", fontSize: "10px" },
-          icon: { path: gm.SymbolPath.CIRCLE, scale: 9, fillColor: i===0 ? "#667eea" : "#fff", fillOpacity: 1, strokeColor: "#667eea", strokeWeight: 2 },
-        });
-        gOverlays.current.push(m);
-      });
-      var path = points.map(function(p) { return new gm.LatLng(p.lat, p.lng); });
-      if (points.length >= 3) {
-        gPolyRef.current = new gm.Polygon({ paths: path, strokeColor: "#667eea", strokeWeight: 3, fillColor: "#667eea", fillOpacity: 0.15, map: gMapRef.current });
-      } else if (points.length === 2) {
-        gPolyRef.current = new gm.Polyline({ path: path, strokeColor: "#667eea", strokeWeight: 3, map: gMapRef.current });
-      }
-      var R = 6371000, toRad = function(d) { return d * Math.PI / 180; };
-      for (var i = 0; i < points.length; i++) {
-        var j = (i+1) % points.length;
-        if (j === 0 && points.length < 3) continue;
-        var p1 = points[i], p2 = points[j];
-        var dlat = toRad(p2.lat-p1.lat), dlng = toRad(p2.lng-p1.lng);
-        var a = Math.pow(Math.sin(dlat/2),2) + Math.cos(toRad(p1.lat))*Math.cos(toRad(p2.lat))*Math.pow(Math.sin(dlng/2),2);
-        var dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        var txt = dist >= 100 ? dist.toFixed(0)+"m" : dist.toFixed(1)+"m";
-        var lm = new gm.Marker({
-          map: gMapRef.current, position: { lat:(p1.lat+p2.lat)/2, lng:(p1.lng+p2.lng)/2 }, zIndex: 5, clickable: false,
-          icon: { path: "M 0,0", scale: 0 },
-          label: { text: txt, color: "#667eea", fontWeight: "bold", fontSize: "11px", className: "map-dist-label" },
-        });
-        gOverlays.current.push(lm);
-      }
-    } catch(e) { console.warn("polygon draw error:", e); }
+    var lg = layerGroup.current;
+    points.forEach(function(pt, i) {
+      var cm = L.circleMarker([pt.lat, pt.lng], { radius: 8, fillColor: i === 0 ? "#667eea" : "#fff", fillOpacity: 1, color: "#667eea", weight: 2 });
+      cm.bindTooltip(String(i + 1), { permanent: true, direction: "center", className: "map-dist-label" });
+      lg.addLayer(cm);
+    });
+    var latlngs = points.map(function(p) { return [p.lat, p.lng]; });
+    if (points.length >= 3) {
+      lg.addLayer(L.polygon(latlngs, { color: "#667eea", weight: 3, fillColor: "#667eea", fillOpacity: 0.15 }));
+    } else if (points.length === 2) {
+      lg.addLayer(L.polyline(latlngs, { color: "#667eea", weight: 3 }));
+    }
+    var R = 6371000, toRad = function(d) { return d * Math.PI / 180; };
+    for (var i = 0; i < points.length; i++) {
+      var j = (i + 1) % points.length;
+      if (j === 0 && points.length < 3) continue;
+      var p1 = points[i], p2 = points[j];
+      var dlat = toRad(p2.lat - p1.lat), dlng = toRad(p2.lng - p1.lng);
+      var a = Math.pow(Math.sin(dlat / 2), 2) + Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) * Math.pow(Math.sin(dlng / 2), 2);
+      var dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      var txt = dist >= 100 ? dist.toFixed(0) + "m" : dist.toFixed(1) + "m";
+      var mid = L.marker([(p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2], { opacity: 0, interactive: false });
+      mid.bindTooltip(txt, { permanent: true, direction: "center", className: "map-dist-label" });
+      lg.addLayer(mid);
+    }
   };
 
   const geocodeAddress = useCallback(function() {
@@ -240,47 +227,44 @@ function TinyHousePlanner() {
   }, [address]);
 
   useEffect(function() {
-    if (!addressResult || addressResult.error || !mapDivRef.current) return;
-    var center = { lat: addressResult.lat, lng: addressResult.lng };
-    var cancelled = false;
-    window.__gmapsReady.then(function() {
-      if (cancelled || !window.google || !google.maps) return;
-      var gm = google.maps;
-      if (gMapRef.current && mapDivRef.current && !mapDivRef.current.querySelector(".gm-style")) {
-        gMapRef.current = null;
+    if (!addressResult || addressResult.error || !mapDivRef.current || !window.L) return;
+    var center = [addressResult.lat, addressResult.lng];
+
+    if (leafletMap.current) {
+      leafletMap.current.remove();
+      leafletMap.current = null;
+      layerGroup.current = null;
+    }
+
+    var map = L.map(mapDivRef.current, { zoomControl: true }).setView(center, 19);
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 20, attribution: "Esri"
+    }).addTo(map);
+
+    leafletMap.current = map;
+    layerGroup.current = L.layerGroup().addTo(map);
+
+    // Address pin
+    L.circleMarker(center, { radius: 10, fillColor: "#ef4444", fillOpacity: 1, color: "#fff", weight: 3 }).addTo(layerGroup.current);
+
+    // Click to add polygon points
+    map.on("click", function(e) {
+      var pt = { lat: e.latlng.lat, lng: e.latlng.lng };
+      var newPts = polyPtsRef.current.concat([pt]);
+      polyPtsRef.current = newPts;
+      setPolyPoints(newPts.slice());
+      if (newPts.length >= 3) {
+        var area = Math.round(calcPolygonAreaSqm(newPts));
+        setMeasuredArea(area);
+        setFormData(function(prev) { return Object.assign({}, prev, { landSize: String(area) }); });
+        setErrors(function(prev) { return Object.assign({}, prev, { landSize: undefined }); });
       }
-      if (!gMapRef.current) {
-        gMapRef.current = new gm.Map(mapDivRef.current, {
-          center: center, zoom: 19, mapTypeId: "satellite",
-          disableDefaultUI: true, zoomControl: true,
-          gestureHandling: "greedy", tilt: 0,
-        });
-        gMapRef.current.addListener("click", function(e) {
-          var pt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-          var newPts = polyPtsRef.current.concat([pt]);
-          polyPtsRef.current = newPts;
-          setPolyPoints(newPts.slice());
-          if (newPts.length >= 3) {
-            var area = Math.round(calcPolygonAreaSqm(newPts));
-            setMeasuredArea(area);
-            setFormData(function(prev) { return Object.assign({}, prev, { landSize: String(area) }); });
-            setErrors(function(prev) { return Object.assign({}, prev, { landSize: undefined }); });
-          }
-          redrawPolygon(newPts);
-        });
-      } else {
-        gMapRef.current.setCenter(center);
-        gMapRef.current.setZoom(19);
-      }
-      try {
-        if (gPinRef.current) gPinRef.current.setMap(null);
-        gPinRef.current = new gm.Marker({
-          map: gMapRef.current, position: center, zIndex: 20,
-          icon: { path: gm.SymbolPath.CIRCLE, scale: 12, fillColor: "#ef4444", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 },
-        });
-      } catch(e) {}
-    }).catch(function(){});
-    return function() { cancelled = true; };
+      redrawPolygon(newPts);
+    });
+
+    return function() {
+      if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; layerGroup.current = null; }
+    };
   }, [addressResult]);
 
   const update = (key, value) => { setFormData(function(prev) { return Object.assign({}, prev, { [key]: value }); }); setErrors(function(prev) { return Object.assign({}, prev, { [key]: undefined }); }); };
@@ -295,7 +279,7 @@ function TinyHousePlanner() {
 
   const nextStep = () => { if (validateStep(step)) { if (step === 2) { setPlan(generatePlan(formData)); setStep(3); } else { setStep(function(s) { return s + 1; }); } } };
   const prevStep = () => setStep(function(s) { return Math.max(0, s - 1); });
-  const resetAll = () => { setStep(0); setPlan(null); setResultTab("overview"); setFormData({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "50", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "150000", purpose: "family" }); setAddress(""); setAddressResult(null); setPolyPoints([]); polyPtsRef.current = []; setMeasuredArea(null); clearOverlays(); if (gPinRef.current) { try { gPinRef.current.setMap(null); } catch(e){} gPinRef.current = null; } gMapRef.current = null; };
+  const resetAll = () => { setStep(0); setPlan(null); setResultTab("overview"); setFormData({ council: "", suburb: "", landSize: "", bedrooms: 1, constructionSize: "50", material: "", finishLevel: "mid", siteCondition: "flat", hasOverlays: "no", budget: "150000", purpose: "family" }); setAddress(""); setAddressResult(null); setPolyPoints([]); polyPtsRef.current = []; setMeasuredArea(null); if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; layerGroup.current = null; } };
   const fmt = (n) => "$" + Math.round(n).toLocaleString();
 
   var estCost = formData.material && formData.constructionSize ? Math.round((parseInt(formData.constructionSize) || 50) * (MATERIALS[formData.material] || { costPerSqm: 2200 }).costPerSqm * (FINISH_LEVELS[formData.finishLevel] || { multiplier: 1 }).multiplier * 1.35) : null;
