@@ -24,6 +24,18 @@
 </head>
 <body>
     <div id="root"><p style="color:#888;padding:40px;text-align:center;">Loading...</p></div>
-    <script type="text/babel" src="qld-tiny-house-planner.jsx"></script>
+    <script>
+      fetch('qld-tiny-house-planner.jsx')
+        .then(function(r) { return r.text(); })
+        .then(function(code) {
+          var output = Babel.transform(code, { presets: ['env', 'react'] }).code;
+          (new Function(output))();
+        })
+        .catch(function(err) {
+          document.getElementById('root').innerHTML =
+            '<pre style="color:#f87171;padding:40px;white-space:pre-wrap;">Error loading app:\n' + err.message + '\n\n' + (err.stack || '') + '</pre>';
+          console.error(err);
+        });
+    </script>
 </body>
 </html>
